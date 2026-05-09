@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-powerups-1";
+        const BUILD = "2026-05-09-prices-1";
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -139,20 +139,20 @@
         setupTelegram();
         const skins = [
           { id: "vt", name: "VT Rocket", market: "VT", price: 0, body: "#15e8ff", trim: "#7967ff", cockpit: "#baffff", trail: "#00f5ff", accent: "#30ff9f", fin: "split" },
-          { id: "ton", legacy: "gold", name: "TON Jet", market: "TON", price: 900, body: "#20a7ff", trim: "#0d56ff", cockpit: "#d9f6ff", trail: "#18dcff", accent: "#35e8ff", fin: "delta" },
-          { id: "xrp", legacy: "diamond", name: "XRP Wing", market: "XRP", price: 1400, body: "#d9e5f2", trim: "#667b8f", cockpit: "#eff9ff", trail: "#c7d5e2", accent: "#f2f6ff", fin: "blade" },
-          { id: "trx", legacy: "ghost", name: "TRX Spear", market: "TRX", price: 2100, body: "#ff344f", trim: "#8b1025", cockpit: "#ffe5e9", trail: "#ff3c63", accent: "#ff7a8f", fin: "spear" },
-          { id: "ada", name: "ADA Halo", market: "ADA", price: 2900, body: "#2f7dff", trim: "#123c8a", cockpit: "#e5f0ff", trail: "#4db8ff", accent: "#8fd4ff", fin: "halo" },
-          { id: "avax", name: "AVAX Blade", market: "AVAX", price: 3900, body: "#ff4b4b", trim: "#7f1111", cockpit: "#ffe8e8", trail: "#ff6161", accent: "#ffb0b0", fin: "blade" },
-          { id: "dot", name: "DOT Pulse", market: "DOT", price: 5200, body: "#ff3fad", trim: "#6a0d47", cockpit: "#ffe3f5", trail: "#ff5fc1", accent: "#ff9ce0", fin: "comet" },
-          { id: "bnb", name: "BNB Forge", market: "BNB", price: 7000, body: "#f3ba2f", trim: "#7a5400", cockpit: "#fff4c2", trail: "#ffd75e", accent: "#fff08a", fin: "crown" },
-          { id: "doge", name: "DOGE Comet", market: "DOGE", price: 9400, body: "#d9b46c", trim: "#7a5b1c", cockpit: "#fff1ca", trail: "#f2c66a", accent: "#ffe08a", fin: "comet" },
-          { id: "pepe", name: "PEPE Neon", market: "PEPE", price: 12500, body: "#59ff62", trim: "#114d24", cockpit: "#eaffcc", trail: "#83ff4a", accent: "#f5ff3d", fin: "frog" },
-          { id: "link", name: "LINK Node", market: "LINK", price: 16500, body: "#2a5ada", trim: "#102a6b", cockpit: "#e6edff", trail: "#4f7cff", accent: "#8aa8ff", fin: "hex" },
-          { id: "sol", legacy: "bull", name: "SOL Flare", market: "SOL", price: 22000, body: "#39ffa8", trim: "#7a4dff", cockpit: "#d6fff1", trail: "#20ffc8", accent: "#ff45d7", fin: "split" },
-          { id: "ltc", name: "LTC Silver", market: "LTC", price: 28500, body: "#c8d2df", trim: "#52606e", cockpit: "#f4f8ff", trail: "#d5e2f0", accent: "#ffffff", fin: "blade" },
-          { id: "eth", name: "ETH Prism", market: "ETH", price: 38000, body: "#8aa8ff", trim: "#4545b8", cockpit: "#edf1ff", trail: "#7b8cff", accent: "#b9c8ff", fin: "prism" },
-          { id: "btc", name: "BTC Crown", market: "BTC", price: 50000, body: "#ffb629", trim: "#7a4c00", cockpit: "#fff3bf", trail: "#ffd35a", accent: "#fff08a", fin: "crown" }
+          { id: "ton", legacy: "gold", name: "TON Jet", market: "TON", price: 1150, body: "#20a7ff", trim: "#0d56ff", cockpit: "#d9f6ff", trail: "#18dcff", accent: "#35e8ff", fin: "delta" },
+          { id: "xrp", legacy: "diamond", name: "XRP Wing", market: "XRP", price: 1800, body: "#d9e5f2", trim: "#667b8f", cockpit: "#eff9ff", trail: "#c7d5e2", accent: "#f2f6ff", fin: "blade" },
+          { id: "trx", legacy: "ghost", name: "TRX Spear", market: "TRX", price: 2700, body: "#ff344f", trim: "#8b1025", cockpit: "#ffe5e9", trail: "#ff3c63", accent: "#ff7a8f", fin: "spear" },
+          { id: "ada", name: "ADA Halo", market: "ADA", price: 3700, body: "#2f7dff", trim: "#123c8a", cockpit: "#e5f0ff", trail: "#4db8ff", accent: "#8fd4ff", fin: "halo" },
+          { id: "avax", name: "AVAX Blade", market: "AVAX", price: 5000, body: "#ff4b4b", trim: "#7f1111", cockpit: "#ffe8e8", trail: "#ff6161", accent: "#ffb0b0", fin: "blade" },
+          { id: "dot", name: "DOT Pulse", market: "DOT", price: 6700, body: "#ff3fad", trim: "#6a0d47", cockpit: "#ffe3f5", trail: "#ff5fc1", accent: "#ff9ce0", fin: "comet" },
+          { id: "bnb", name: "BNB Forge", market: "BNB", price: 9000, body: "#f3ba2f", trim: "#7a5400", cockpit: "#fff4c2", trail: "#ffd75e", accent: "#fff08a", fin: "crown" },
+          { id: "doge", name: "DOGE Comet", market: "DOGE", price: 12000, body: "#d9b46c", trim: "#7a5b1c", cockpit: "#fff1ca", trail: "#f2c66a", accent: "#ffe08a", fin: "comet" },
+          { id: "pepe", name: "PEPE Neon", market: "PEPE", price: 16000, body: "#59ff62", trim: "#114d24", cockpit: "#eaffcc", trail: "#83ff4a", accent: "#f5ff3d", fin: "frog" },
+          { id: "link", name: "LINK Node", market: "LINK", price: 21000, body: "#2a5ada", trim: "#102a6b", cockpit: "#e6edff", trail: "#4f7cff", accent: "#8aa8ff", fin: "hex" },
+          { id: "sol", legacy: "bull", name: "SOL Flare", market: "SOL", price: 28000, body: "#39ffa8", trim: "#7a4dff", cockpit: "#d6fff1", trail: "#20ffc8", accent: "#ff45d7", fin: "split" },
+          { id: "ltc", name: "LTC Silver", market: "LTC", price: 36500, body: "#c8d2df", trim: "#52606e", cockpit: "#f4f8ff", trail: "#d5e2f0", accent: "#ffffff", fin: "blade" },
+          { id: "eth", name: "ETH Prism", market: "ETH", price: 49000, body: "#8aa8ff", trim: "#4545b8", cockpit: "#edf1ff", trail: "#7b8cff", accent: "#b9c8ff", fin: "prism" },
+          { id: "btc", name: "BTC Crown", market: "BTC", price: 64000, body: "#ffb629", trim: "#7a4c00", cockpit: "#fff3bf", trail: "#ffd35a", accent: "#fff08a", fin: "crown" }
         ];
         const copy = {
           en: {

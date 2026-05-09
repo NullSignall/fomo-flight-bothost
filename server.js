@@ -12,23 +12,23 @@ const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.js
 const publicUrl = String(process.env.PUBLIC_URL || "https://bot-1778289451-5878-nullsignal.bothost.tech").replace(/\/+$/, "");
 const miniAppLink = process.env.MINI_APP_LINK || "https://t.me/FomoFlightBot?startapp=share";
 const shareDir = process.env.SHARE_DIR || path.join(__dirname, "data", "share");
-const buildVersion = "2026-05-09-powerups-1";
+const buildVersion = "2026-05-09-prices-1";
 const skinPrices = new Map([
   ["vt", 0],
-  ["ton", 900],
-  ["xrp", 1400],
-  ["trx", 2100],
-  ["ada", 2900],
-  ["avax", 3900],
-  ["dot", 5200],
-  ["bnb", 7000],
-  ["doge", 9400],
-  ["pepe", 12500],
-  ["link", 16500],
-  ["sol", 22000],
-  ["ltc", 28500],
-  ["eth", 38000],
-  ["btc", 50000]
+  ["ton", 1150],
+  ["xrp", 1800],
+  ["trx", 2700],
+  ["ada", 3700],
+  ["avax", 5000],
+  ["dot", 6700],
+  ["bnb", 9000],
+  ["doge", 12000],
+  ["pepe", 16000],
+  ["link", 21000],
+  ["sol", 28000],
+  ["ltc", 36500],
+  ["eth", 49000],
+  ["btc", 64000]
 ]);
 
 app.use(express.json({ limit: "6mb" }));
