@@ -9,7 +9,7 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const botToken = process.env.BOT_TOKEN || "";
 const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.json");
-const buildVersion = "2026-05-09-cache-bust-2";
+const buildVersion = "2026-05-09-nickname-input-1";
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 900],
@@ -67,7 +67,11 @@ app.get("/api/profile", auth, (req, res) => {
 app.post("/api/profile/name", auth, (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
-  user.displayName = sanitizeName(req.body.displayName || user.displayName);
+  const nextName = sanitizeName(req.body.displayName || user.displayName);
+  const problem = nicknameProblem(nextName);
+  if (problem) return res.status(400).json({ error: problem });
+  if (isNameTaken(nextName, user.telegramId, store)) return res.status(409).json({ error: "name_taken" });
+  user.displayName = nextName;
   user.updatedAt = new Date().toISOString();
   store.users[user.telegramId] = user;
   writeStore(store);
@@ -232,6 +236,47 @@ function validateRun(run, user, store) {
 
 function sanitizeName(value) {
   return String(value || "").replace(/[^\w\u0430-\u044f\u0410-\u042f\u0451\u0401 -]/g, "").trim().slice(0, 24) || "Pilot";
+}
+
+function normalizeNameForCompare(value) {
+  return String(value || "").toLowerCase().replace(/[\s_\-.]+/g, "");
+}
+
+function normalizeNameForCheck(value) {
+  const map = { a: "\u0430", e: "\u0435", o: "\u043E", p: "\u0440", c: "\u0441", x: "\u0445", y: "\u0443", k: "\u043A", m: "\u043C", h: "\u043D", b: "\u0432", t: "\u0442", 0: "\u043E", 3: "\u0437", 4: "\u0447", 6: "\u0431" };
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[a-z0-9]/g, (ch) => map[ch] || ch)
+    .replace(/[\s_\-.]+/g, "");
+}
+
+function nicknameProblem(value) {
+  const cleaned = sanitizeName(value);
+  if (cleaned.length < 2) return "nickname_short";
+  const compact = normalizeNameForCheck(cleaned);
+  const bad = [
+    "\u0431\u043B\u044F",
+    "\u0445\u0443\u0439",
+    "\u0445\u0443\u0435",
+    "\u043F\u0438\u0437\u0434",
+    "\u043F\u0438\u0434\u043E\u0440",
+    "\u0435\u0431\u0430",
+    "\u0435\u0431\u0438",
+    "\u0435\u0431\u0443",
+    "\u0435\u0431\u043B",
+    "\u0435\u0431\u043D",
+    "\u0451\u0431\u0430",
+    "\u0451\u0431\u043D",
+    "\u0441\u0443\u043A\u0430",
+    "\u0448\u043B\u044E\u0445",
+    "\u0433\u0430\u043D\u0434\u043E\u043D"
+  ];
+  return bad.some((word) => compact.includes(word)) ? "nickname_bad_words" : "";
+}
+
+function isNameTaken(name, telegramId, store) {
+  const normalized = normalizeNameForCompare(name);
+  return Object.values(store.users).some((user) => user.telegramId !== telegramId && normalizeNameForCompare(user.displayName) === normalized);
 }
 
 function readStore() {

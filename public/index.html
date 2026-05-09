@@ -27,17 +27,110 @@
         background: #070914;
         display: block;
       }
+      .nick-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        background: rgba(3, 7, 18, 0.72);
+        backdrop-filter: blur(10px);
+        touch-action: manipulation;
+      }
+      .nick-modal[hidden] { display: none; }
+      .nick-panel {
+        width: min(92vw, 420px);
+        border: 1px solid rgba(45, 239, 255, 0.76);
+        border-radius: 12px;
+        padding: 22px;
+        background: linear-gradient(135deg, rgba(5, 15, 31, 0.98), rgba(15, 10, 40, 0.96));
+        box-shadow: 0 0 32px rgba(0, 229, 255, 0.24), 0 0 42px rgba(125, 92, 255, 0.18);
+      }
+      .nick-title {
+        margin: 0 0 8px;
+        color: #effcff;
+        font-size: 24px;
+        font-weight: 950;
+        text-align: center;
+        touch-action: manipulation;
+        user-select: text;
+        text-transform: uppercase;
+      }
+      .nick-hint {
+        margin: 0 0 18px;
+        color: #7de9ff;
+        font-size: 13px;
+        font-weight: 800;
+        text-align: center;
+      }
+      .nick-input {
+        width: 100%;
+        height: 54px;
+        border: 1px solid rgba(48, 255, 159, 0.7);
+        border-radius: 9px;
+        outline: none;
+        padding: 0 14px;
+        color: #effcff;
+        background: rgba(2, 8, 18, 0.92);
+        box-shadow: 0 0 18px rgba(48, 255, 159, 0.16);
+        font: 900 20px Inter, system-ui, sans-serif;
+        text-align: center;
+      }
+      .nick-error {
+        min-height: 20px;
+        margin: 10px 0 12px;
+        color: #ffd75e;
+        font-size: 13px;
+        font-weight: 850;
+        text-align: center;
+      }
+      .nick-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .nick-actions button {
+        height: 48px;
+        border: 1px solid currentColor;
+        border-radius: 8px;
+        color: #effcff;
+        background: rgba(5, 12, 28, 0.96);
+        font: 900 15px Inter, system-ui, sans-serif;
+        box-shadow: 0 0 16px rgba(125, 92, 255, 0.2);
+      }
+      #nickSave { color: #30ff9f; }
+      #nickCancel { color: #8b7dff; }
     </style>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
     <canvas id="game" width="540" height="960"></canvas>
+    <div id="nickModal" class="nick-modal" hidden>
+      <div class="nick-panel">
+        <h2 id="nickTitle" class="nick-title">CALLSIGN</h2>
+        <p id="nickHint" class="nick-hint">Choose how you appear in the leaderboard</p>
+        <input id="nickInput" class="nick-input" maxlength="14" autocomplete="off" inputmode="text" />
+        <div id="nickError" class="nick-error"></div>
+        <div class="nick-actions">
+          <button id="nickCancel" type="button">BACK</button>
+          <button id="nickSave" type="button">SAVE</button>
+        </div>
+      </div>
+    </div>
     <script>
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-cache-bust-2";
+        const BUILD = "2026-05-09-nickname-input-1";
         const canvas = document.getElementById("game");
+        const nickModal = document.getElementById("nickModal");
+        const nickTitle = document.getElementById("nickTitle");
+        const nickHint = document.getElementById("nickHint");
+        const nickInput = document.getElementById("nickInput");
+        const nickError = document.getElementById("nickError");
+        const nickSave = document.getElementById("nickSave");
+        const nickCancel = document.getElementById("nickCancel");
         const ctx = canvas.getContext("2d");
         const KEY = "fomo-flight-preview-v1";
         const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -102,7 +195,11 @@
             nicknameButton: "SAVE CALLSIGN",
             nicknameEdit: "EDIT CALLSIGN",
             nicknameShort: "NICK",
-            nicknameRandom: "RANDOM"
+            nicknameRandom: "RANDOM",
+            nicknameCancel: "BACK",
+            nicknameBadShort: "Use 2-14 characters",
+            nicknameBadWords: "Choose a cleaner nickname",
+            nicknameTaken: "This nickname is taken"
           },
           ru: {
             flight: "\u043a\u0440\u0438\u043f\u0442\u043e \u0430\u0440\u043a\u0430\u0434\u0430",
@@ -144,7 +241,11 @@
             nicknameButton: "\u0421\u041E\u0425\u0420\u0410\u041D\u0418\u0422\u042C \u041D\u0418\u041A",
             nicknameEdit: "\u0418\u0417\u041C\u0415\u041D\u0418\u0422\u042C \u041D\u0418\u041A",
             nicknameShort: "\u041D\u0418\u041A",
-            nicknameRandom: "\u0421\u041B\u0423\u0427\u0410\u0419\u041D\u042B\u0419"
+            nicknameRandom: "\u0421\u041B\u0423\u0427\u0410\u0419\u041D\u042B\u0419",
+            nicknameCancel: "\u041D\u0410\u0417\u0410\u0414",
+            nicknameBadShort: "\u041D\u0443\u0436\u043D\u043E 2-14 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432",
+            nicknameBadWords: "\u0412\u044B\u0431\u0435\u0440\u0438 \u043D\u0438\u043A \u043F\u043E\u0447\u0438\u0449\u0435",
+            nicknameTaken: "\u042D\u0442\u043E\u0442 \u043D\u0438\u043A \u0443\u0436\u0435 \u0437\u0430\u043D\u044F\u0442"
           }
         };
         const load = () => {
@@ -286,6 +387,38 @@
           return cleaned;
         }
 
+        function normalizeNicknameForCheck(value) {
+          const map = { a: "\u0430", e: "\u0435", o: "\u043E", p: "\u0440", c: "\u0441", x: "\u0445", y: "\u0443", k: "\u043A", m: "\u043C", h: "\u043D", b: "\u0432", t: "\u0442", 0: "\u043E", 3: "\u0437", 4: "\u0447", 6: "\u0431" };
+          return String(value || "")
+            .toLowerCase()
+            .replace(/[a-z0-9]/g, (ch) => map[ch] || ch)
+            .replace(/[\s_\-.]+/g, "");
+        }
+
+        function nicknameProblem(value) {
+          const cleaned = sanitizeNickname(value);
+          if (cleaned.length < 2) return "nicknameBadShort";
+          const compact = normalizeNicknameForCheck(cleaned);
+          const bad = [
+            "\u0431\u043B\u044F",
+            "\u0445\u0443\u0439",
+            "\u0445\u0443\u0435",
+            "\u043F\u0438\u0437\u0434",
+            "\u043F\u0438\u0434\u043E\u0440",
+            "\u0435\u0431\u0430",
+            "\u0435\u0431\u0438",
+            "\u0435\u0431\u0443",
+            "\u0435\u0431\u043B",
+            "\u0435\u0431\u043D",
+            "\u0451\u0431\u0430",
+            "\u0451\u0431\u043D",
+            "\u0441\u0443\u043A\u0430",
+            "\u0448\u043B\u044E\u0445",
+            "\u0433\u0430\u043D\u0434\u043E\u043D"
+          ];
+          return bad.some((word) => compact.includes(word)) ? "nicknameBadWords" : "";
+        }
+
         function displayName() {
           return progress.nickname || L("you");
         }
@@ -353,12 +486,19 @@
         }
 
         async function syncNickname() {
-          if (!hasTelegramAuth()) return;
+          if (!hasTelegramAuth()) return true;
           try {
             const data = await api("/api/profile/name", { method: "POST", body: { displayName: progress.nickname } });
             applyServerProfile(data.profile);
             await loadLeaderboard();
-          } catch {}
+            return true;
+          } catch (error) {
+            if (nickModal && !nickModal.hidden) {
+              const key = error.message === "name_taken" ? "nicknameTaken" : error.message === "nickname_short" ? "nicknameBadShort" : "nicknameBadWords";
+              nickError.textContent = L(key);
+            }
+            return false;
+          }
         }
 
         async function syncRun(scoreValue, vtcValue, durationMs) {
@@ -1009,9 +1149,15 @@
           } else if (state === "nickname") {
             if (inRect(x, y, 270, 560, 342, 64)) askNickname();
             if (inRect(x, y, 270, 642, 342, 58)) {
+              const previous = progress.nickname;
               progress.nickname = randomNickname();
               save();
-              syncNickname();
+              syncNickname().then((ok) => {
+                if (!ok) {
+                  progress.nickname = previous;
+                  save();
+                }
+              });
             }
             if (inRect(x, y, 270, 724, 342, 58)) state = "start";
           }
@@ -1028,13 +1174,39 @@
         }
 
         function askNickname() {
-          const entered = window.prompt(L("nicknameTitle"), progress.nickname || displayName());
-          if (entered === null) return;
-          const next = sanitizeNickname(entered);
-          if (next) {
-            progress.nickname = next;
+          nickTitle.textContent = L("nicknameTitle");
+          nickHint.textContent = L("nicknameHint");
+          nickSave.textContent = L("nicknameButton");
+          nickCancel.textContent = L("nicknameCancel");
+          nickError.textContent = "";
+          nickInput.value = progress.nickname || displayName();
+          nickModal.hidden = false;
+          setTimeout(() => {
+            nickInput.focus();
+            nickInput.select();
+          }, 40);
+        }
+
+        function closeNicknameModal() {
+          nickModal.hidden = true;
+          nickError.textContent = "";
+          canvas.focus && canvas.focus();
+        }
+
+        async function saveNicknameFromModal() {
+          const problem = nicknameProblem(nickInput.value);
+          if (problem) {
+            nickError.textContent = L(problem);
+            return;
+          }
+          const previous = progress.nickname;
+          progress.nickname = sanitizeNickname(nickInput.value);
+          save();
+          const ok = await syncNickname();
+          if (ok) closeNicknameModal();
+          else {
+            progress.nickname = previous;
             save();
-            syncNickname();
           }
         }
 
@@ -1321,7 +1493,18 @@
           const p = pointerPos(e);
           click(p.x, p.y);
         });
+        nickCancel.addEventListener("click", closeNicknameModal);
+        nickSave.addEventListener("click", saveNicknameFromModal);
+        nickInput.addEventListener("input", () => {
+          nickInput.value = sanitizeNickname(nickInput.value);
+          nickError.textContent = "";
+        });
+        nickInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") saveNicknameFromModal();
+          if (e.key === "Escape") closeNicknameModal();
+        });
         window.addEventListener("keydown", (e) => {
+          if (!nickModal.hidden) return;
           if (e.code === "Space") flap();
         });
 
