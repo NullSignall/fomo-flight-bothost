@@ -9,6 +9,7 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const botToken = process.env.BOT_TOKEN || "";
 const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.json");
+const buildVersion = "2026-05-09-cache-bust-2";
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 900],
@@ -28,13 +29,26 @@ const skinPrices = new Map([
 ]);
 
 app.use(express.json({ limit: "64kb" }));
+app.use((req, res, next) => {
+  res.setHeader("x-fomo-flight-build", buildVersion);
+  next();
+});
 app.use(express.static(path.join(__dirname, "public"), {
   extensions: ["html"],
-  maxAge: "5m"
+  etag: false,
+  lastModified: false,
+  maxAge: 0,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith(".html")) {
+      res.setHeader("cache-control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("pragma", "no-cache");
+      res.setHeader("expires", "0");
+    }
+  }
 }));
 
 app.get("/health", (_, res) => {
-  res.json({ ok: true, app: "fomo-flight" });
+  res.json({ ok: true, app: "fomo-flight", build: buildVersion });
 });
 
 app.get("/api/leaderboard", (_, res) => {
