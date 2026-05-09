@@ -12,7 +12,7 @@ const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.js
 const publicUrl = String(process.env.PUBLIC_URL || "https://bot-1778289451-5878-nullsignal.bothost.tech").replace(/\/+$/, "");
 const miniAppLink = process.env.MINI_APP_LINK || "https://t.me/FomoFlightBot?startapp=share";
 const shareDir = process.env.SHARE_DIR || path.join(__dirname, "data", "share");
-const buildVersion = "2026-05-09-story-share-2";
+const buildVersion = "2026-05-09-story-share-3";
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 900],
@@ -58,7 +58,11 @@ app.get("/api/config", (_, res) => {
   res.json({ miniAppLink, publicUrl });
 });
 
-app.use("/share", express.static(shareDir, {
+app.use("/share", (req, res, next) => {
+  res.setHeader("access-control-allow-origin", "*");
+  res.setHeader("cross-origin-resource-policy", "cross-origin");
+  next();
+}, express.static(shareDir, {
   etag: false,
   lastModified: false,
   maxAge: "7d",
@@ -66,6 +70,19 @@ app.use("/share", express.static(shareDir, {
     res.setHeader("cache-control", "public, max-age=604800, immutable");
   }
 }));
+
+app.get("/debug/share-latest", (_, res) => {
+  const latestPath = path.join(shareDir, "latest.json");
+  if (!fs.existsSync(latestPath)) return res.status(404).json({ error: "no_share_card_yet" });
+  res.json(JSON.parse(fs.readFileSync(latestPath, "utf8")));
+});
+
+app.get("/debug/share-latest-image", (_, res) => {
+  const latestPath = path.join(shareDir, "latest.json");
+  if (!fs.existsSync(latestPath)) return res.status(404).send("No share card yet");
+  const latest = JSON.parse(fs.readFileSync(latestPath, "utf8"));
+  res.redirect(latest.mediaUrl);
+});
 
 app.get("/api/leaderboard", (_, res) => {
   const store = readStore();
@@ -180,9 +197,18 @@ app.post("/api/share-card", auth, (req, res) => {
   const id = `${userId}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
   const ext = match[1] === "jpeg" ? "jpg" : "png";
   const fileName = `${id}.${ext}`;
+  const bytes = Buffer.from(match[2], "base64");
   fs.mkdirSync(shareDir, { recursive: true });
-  fs.writeFileSync(path.join(shareDir, fileName), Buffer.from(match[2], "base64"));
-  res.json({ mediaUrl: `${publicUrl}/share/${fileName}`, miniAppLink });
+  fs.writeFileSync(path.join(shareDir, fileName), bytes);
+  const result = {
+    mediaUrl: `${publicUrl}/share/${fileName}`,
+    miniAppLink,
+    fileName,
+    bytes: bytes.length,
+    createdAt: new Date().toISOString()
+  };
+  fs.writeFileSync(path.join(shareDir, "latest.json"), JSON.stringify(result, null, 2));
+  res.json(result);
 });
 
 app.get("*", (_, res) => {

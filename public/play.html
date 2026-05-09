@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-story-share-2";
+        const BUILD = "2026-05-09-story-share-3";
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -1183,6 +1183,7 @@
             ? `Fomo Flight: NEW ATH ${data.ath} PNL, +${data.vtc} VTC. Can you beat it?\n@FomoFlightBot`
             : `Fomo Flight: ${data.score} PNL, +${data.vtc} VTC. Can you beat my ATH?\n@FomoFlightBot`;
           const appLink = miniAppLink;
+          const storyText = `${message}\n${appLink}`;
           const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appLink)}&text=${encodeURIComponent(message)}`;
           const card = createShareCard(data);
           try {
@@ -1190,7 +1191,7 @@
             if (tg && tg.shareToStory && hasTelegramAuth()) {
               const media = await uploadShareCard(card);
               tg.shareToStory(media.mediaUrl, {
-                text: message,
+                text: storyText,
                 widget_link: {
                   url: media.miniAppLink || appLink,
                   name: "Play Fomo Flight"
