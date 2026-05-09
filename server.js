@@ -9,6 +9,23 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const botToken = process.env.BOT_TOKEN || "";
 const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.json");
+const skinPrices = new Map([
+  ["vt", 0],
+  ["ton", 900],
+  ["xrp", 1400],
+  ["trx", 2100],
+  ["ada", 2900],
+  ["avax", 3900],
+  ["dot", 5200],
+  ["bnb", 7000],
+  ["doge", 9400],
+  ["pepe", 12500],
+  ["link", 16500],
+  ["sol", 22000],
+  ["ltc", 28500],
+  ["eth", 38000],
+  ["btc", 50000]
+]);
 
 app.use(express.json({ limit: "64kb" }));
 app.use(express.static(path.join(__dirname, "public"), {
@@ -31,6 +48,47 @@ app.get("/api/leaderboard", (_, res) => {
 
 app.get("/api/profile", auth, (req, res) => {
   res.json({ profile: getUser(req.telegramUser) });
+});
+
+app.post("/api/profile/name", auth, (req, res) => {
+  const store = readStore();
+  const user = getUser(req.telegramUser, store);
+  user.displayName = sanitizeName(req.body.displayName || user.displayName);
+  user.updatedAt = new Date().toISOString();
+  store.users[user.telegramId] = user;
+  writeStore(store);
+  res.json({ profile: user });
+});
+
+app.post("/api/skin/select", auth, (req, res) => {
+  const store = readStore();
+  const user = getUser(req.telegramUser, store);
+  const skinId = String(req.body.skinId || "");
+  if (!skinPrices.has(skinId)) return res.status(400).json({ error: "unknown_skin" });
+  if (!user.unlockedSkins.includes(skinId)) return res.status(400).json({ error: "skin_locked" });
+  user.selectedSkin = skinId;
+  user.updatedAt = new Date().toISOString();
+  store.users[user.telegramId] = user;
+  writeStore(store);
+  res.json({ profile: user });
+});
+
+app.post("/api/skin/buy", auth, (req, res) => {
+  const store = readStore();
+  const user = getUser(req.telegramUser, store);
+  const skinId = String(req.body.skinId || "");
+  const price = skinPrices.get(skinId);
+  if (price === undefined) return res.status(400).json({ error: "unknown_skin" });
+  if (!user.unlockedSkins.includes(skinId)) {
+    if (user.totalVtc < price) return res.status(400).json({ error: "not_enough_vtc" });
+    user.totalVtc -= price;
+    user.unlockedSkins.push(skinId);
+  }
+  user.selectedSkin = skinId;
+  user.updatedAt = new Date().toISOString();
+  store.users[user.telegramId] = user;
+  writeStore(store);
+  res.json({ profile: user });
 });
 
 app.post("/api/run/submit", auth, (req, res) => {
@@ -136,6 +194,18 @@ function getUser(tgUser, store = readStore()) {
   return store.users[telegramId];
 }
 
+function normalizeUser(user) {
+  user.totalVtc = Math.max(0, Math.floor(Number(user.totalVtc) || 0));
+  user.bestScore = Math.max(0, Math.floor(Number(user.bestScore) || 0));
+  user.displayName = sanitizeName(user.displayName || `Pilot ${String(user.telegramId).slice(-4)}`);
+  user.unlockedSkins = Array.isArray(user.unlockedSkins) ? [...new Set(user.unlockedSkins.filter((id) => skinPrices.has(id)))] : ["vt"];
+  if (!user.unlockedSkins.includes("vt")) user.unlockedSkins.unshift("vt");
+  user.selectedSkin = user.unlockedSkins.includes(user.selectedSkin) ? user.selectedSkin : "vt";
+  user.dailyStreak = Math.max(0, Math.min(7, Math.floor(Number(user.dailyStreak) || 0)));
+  user.lastDaily = typeof user.lastDaily === "string" ? user.lastDaily : "";
+  return user;
+}
+
 function validateRun(run, user, store) {
   if (!run.runId || run.runId.length > 80 || store.runs[run.runId]) return { ok: false, error: "bad_run_id" };
   if (run.score < 0 || run.vtc < 0 || run.durationMs < 1000) return { ok: false, error: "bad_run" };
@@ -147,12 +217,16 @@ function validateRun(run, user, store) {
 }
 
 function sanitizeName(value) {
-  return String(value || "").replace(/[^\w -]/g, "").trim().slice(0, 24) || "Pilot";
+  return String(value || "").replace(/[^\w\u0430-\u044f\u0410-\u042f\u0451\u0401 -]/g, "").trim().slice(0, 24) || "Pilot";
 }
 
 function readStore() {
   if (!fs.existsSync(dataPath)) return { users: {}, runs: {} };
-  return JSON.parse(fs.readFileSync(dataPath, "utf8"));
+  const store = JSON.parse(fs.readFileSync(dataPath, "utf8"));
+  store.users = store.users || {};
+  store.runs = store.runs || {};
+  for (const user of Object.values(store.users)) normalizeUser(user);
+  return store;
 }
 
 function writeStore(store) {

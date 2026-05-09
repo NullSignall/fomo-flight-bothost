@@ -89,6 +89,7 @@
             runClosed: "MAKERS GOT YOU",
             earned: "VTC EARNED",
             localLeague: "LOCAL LEAGUE",
+            globalLeague: "GLOBAL LEAGUE",
             you: "YOU",
             page: "PAGE",
             streak: "STREAK",
@@ -128,6 +129,7 @@
             runClosed: "\u0420\u042b\u041d\u041e\u041a \u0417\u0410\u0411\u0420\u0410\u041b \u0421\u0412\u041e\u0415",
             earned: "VTC \u0417\u0410\u0411\u0420\u0410\u041d\u041e",
             localLeague: "\u041b\u041e\u041a\u0410\u041b\u042c\u041d\u0410\u042f \u041b\u0418\u0413\u0410",
+            globalLeague: "\u041e\u0411\u0429\u0410\u042f \u041b\u0418\u0413\u0410",
             you: "\u0422\u042b",
             page: "\u0421\u0422\u0420",
             streak: "\u0421\u0415\u0420\u0418\u042f",
@@ -153,7 +155,11 @@
         let shopPage = 0;
         let player, obstacles, coins, particles, stars, score, runCoins, speed, spawnTimer, impact;
         let last = performance.now();
+        let runStartedAt = 0;
         let muted = false;
+        let leaderboardCache = [];
+        let cloudReady = false;
+        let syncBusy = false;
 
         function resetRun() {
           player = { x: 138, y: 438, vy: -360, r: 24, angle: 0 };
@@ -172,6 +178,7 @@
           speed = 205;
           spawnTimer = 760;
           impact = 0;
+          runStartedAt = performance.now();
           state = "game";
         }
 
@@ -189,8 +196,18 @@
           return progress.lastDaily !== today();
         }
 
-        function collectDaily() {
+        async function collectDaily() {
           if (!canCollectDaily()) return false;
+          if (hasTelegramAuth()) {
+            try {
+              const data = await api("/api/daily/claim", { method: "POST", body: {} });
+              applyServerProfile(data.profile);
+              beep(data.claimed ? "buy" : "coin");
+              return data.claimed;
+            } catch {
+              cloudReady = false;
+            }
+          }
           const yesterday = dateKey(-1);
           const nextStreak = progress.lastDaily === yesterday ? progress.streak + 1 : 1;
           progress.streak = nextStreak > 7 ? 1 : nextStreak;
@@ -271,6 +288,91 @@
 
         function L(key) {
           return (copy[progress.lang] || copy.en)[key] || copy.en[key] || key;
+        }
+
+        function hasTelegramAuth() {
+          return Boolean(tg && tg.initData);
+        }
+
+        async function api(path, options = {}) {
+          if (!hasTelegramAuth()) throw new Error("telegram_auth_required");
+          const response = await fetch(path, {
+            method: options.method || "GET",
+            headers: {
+              "content-type": "application/json",
+              "x-telegram-init-data": tg.initData
+            },
+            body: options.body ? JSON.stringify(options.body) : undefined
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "api_error");
+          return data;
+        }
+
+        function applyServerProfile(profile) {
+          if (!profile) return;
+          progress.coins = Math.max(0, Number(profile.totalVtc) || 0);
+          progress.best = Math.max(0, Number(profile.bestScore) || 0);
+          progress.selected = skins.some((skin) => skin.id === profile.selectedSkin) ? profile.selectedSkin : progress.selected;
+          progress.unlocked = Array.isArray(profile.unlockedSkins) && profile.unlockedSkins.length ? profile.unlockedSkins : progress.unlocked;
+          progress.streak = Math.max(0, Math.min(7, Number(profile.dailyStreak) || 0));
+          progress.lastDaily = String(profile.lastDaily || "");
+          progress.nickname = sanitizeNickname(profile.displayName || progress.nickname);
+          cloudReady = true;
+          save();
+        }
+
+        async function loadCloudProfile() {
+          if (!hasTelegramAuth()) return;
+          try {
+            const data = await api("/api/profile");
+            applyServerProfile(data.profile);
+            await loadLeaderboard();
+          } catch (error) {
+            cloudReady = false;
+          }
+        }
+
+        async function loadLeaderboard() {
+          try {
+            const response = await fetch("/api/leaderboard");
+            const data = await response.json();
+            leaderboardCache = Array.isArray(data.rows) ? data.rows : [];
+          } catch {
+            leaderboardCache = [];
+          }
+        }
+
+        async function syncNickname() {
+          if (!hasTelegramAuth()) return;
+          try {
+            const data = await api("/api/profile/name", { method: "POST", body: { displayName: progress.nickname } });
+            applyServerProfile(data.profile);
+            await loadLeaderboard();
+          } catch {}
+        }
+
+        async function syncRun(scoreValue, vtcValue, durationMs) {
+          if (!hasTelegramAuth() || syncBusy) return;
+          syncBusy = true;
+          try {
+            const data = await api("/api/run/submit", {
+              method: "POST",
+              body: {
+                runId: `${currentUserId()}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+                score: Math.floor(scoreValue),
+                vtc: Math.floor(vtcValue),
+                durationMs: Math.max(1000, Math.floor(durationMs)),
+                selectedSkin: progress.selected
+              }
+            });
+            applyServerProfile(data.profile);
+            await loadLeaderboard();
+          } catch {
+            cloudReady = false;
+          } finally {
+            syncBusy = false;
+          }
         }
 
         function toggleLanguage() {
@@ -496,11 +598,14 @@
         }
 
         function crash() {
+          const finalScore = Math.floor(score);
+          const durationMs = performance.now() - runStartedAt;
           state = "over";
           impact = 16;
           progress.coins += runCoins;
-          progress.best = Math.max(progress.best, Math.floor(score));
+          progress.best = Math.max(progress.best, finalScore);
           save();
+          syncRun(finalScore, runCoins, durationMs);
           beep("crash");
         }
 
@@ -703,7 +808,7 @@
           drawBg();
           brandHeader(270, 48);
           text(L("leaders"), 270, 100, 38, "#effcff", "950");
-          text(`${L("localLeague")}  |  ${displayName()}`, 270, 134, 15, "#ffd75e", "850");
+          text(`${cloudReady ? L("globalLeague") : L("localLeague")}  |  ${displayName()}`, 270, 134, 15, "#ffd75e", "850");
           const rows = leaderboardRows();
           rows.forEach((row, i) => {
             const y = 172 + i * 43;
@@ -713,7 +818,7 @@
             leftText(row.name, 120, y, 15, isYou ? "#effcff" : "#b9d6df", "900");
             text(String(row.score), 432, y, 17, isYou ? "#30ff9f" : "#7de9ff", "950");
           });
-          text(progress.lang === "ru" ? "\u041F\u0440\u043E\u0433\u0440\u0435\u0441\u0441 \u043F\u0440\u0438\u0432\u044F\u0437\u0430\u043D \u043A user id. Telegram \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u043C \u043F\u043E\u0437\u0436\u0435." : "Progress is tied to user id. Telegram sync comes later.", 270, 842, 13, "#7899aa", "780");
+          text(cloudReady ? (progress.lang === "ru" ? "\u041F\u0440\u043E\u0433\u0440\u0435\u0441\u0441 \u043F\u0440\u0438\u0432\u044F\u0437\u0430\u043D \u043A Telegram ID" : "Progress is tied to Telegram ID") : (progress.lang === "ru" ? "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 \u0440\u0435\u0436\u0438\u043C: \u043E\u0442\u043A\u0440\u043E\u0439 \u0432 Telegram" : "Local mode: open in Telegram"), 270, 842, 13, "#7899aa", "780");
           btn(270, 902, 342, 50, L("back"), "#7d6cff");
         }
 
@@ -780,6 +885,22 @@
 
         function leaderboardRows() {
           const best = Math.floor(progress.best);
+          if (leaderboardCache.length) {
+            const remote = leaderboardCache.map((row) => ({
+              name: sanitizeNickname(row.displayName || row.name || "Pilot"),
+              score: Math.max(0, Math.floor(Number(row.bestScore ?? row.score) || 0))
+            }));
+            remote.push({ name: displayName(), score: best, me: true });
+            const unique = [];
+            const seen = new Set();
+            for (const row of remote.sort((a, b) => b.score - a.score)) {
+              const key = row.me ? "me" : `${row.name}:${row.score}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              unique.push(row);
+            }
+            return unique.slice(0, 15);
+          }
           const base = Math.max(best, 840);
           const rows = [
             { name: "Pulse", score: base + 780 },
@@ -804,6 +925,39 @@
         function metric(label, value, y, color) {
           text(label, 270, y - 17, 15, "#7d9eab", "800");
           text(String(value), 270, y + 14, 29, color, "850");
+        }
+
+        async function chooseSkin(skin) {
+          const owned = progress.unlocked.includes(skin.id);
+          if (hasTelegramAuth()) {
+            try {
+              const data = await api(owned ? "/api/skin/select" : "/api/skin/buy", {
+                method: "POST",
+                body: { skinId: skin.id }
+              });
+              applyServerProfile(data.profile);
+              beep("buy");
+              return;
+            } catch {
+              impact = 8;
+              beep("crash");
+              return;
+            }
+          }
+          if (owned) {
+            progress.selected = skin.id;
+            save();
+            beep("buy");
+          } else if (progress.coins >= skin.price) {
+            progress.coins -= skin.price;
+            progress.unlocked.push(skin.id);
+            progress.selected = skin.id;
+            save();
+            beep("buy");
+          } else {
+            impact = 8;
+            beep("crash");
+          }
         }
 
         function click(x, y) {
@@ -831,20 +985,7 @@
             if (inRect(x, y, 382, 800, 130, 48)) shopPage = Math.min(Math.ceil(skins.length / 5) - 1, shopPage + 1);
             skins.slice(shopPage * 5, shopPage * 5 + 5).forEach((skin, i) => {
               if (!inRect(x, y, 416, 230 + i * 104, 112, 44)) return;
-              if (progress.unlocked.includes(skin.id)) {
-                progress.selected = skin.id;
-                save();
-                beep("buy");
-              } else if (progress.coins >= skin.price) {
-                progress.coins -= skin.price;
-                progress.unlocked.push(skin.id);
-                progress.selected = skin.id;
-                save();
-                beep("buy");
-              } else {
-                impact = 8;
-                beep("crash");
-              }
+              chooseSkin(skin);
             });
           } else if (state === "leaders") {
             if (inRect(x, y, 270, 902, 342, 50)) state = "start";
@@ -856,6 +997,7 @@
             if (inRect(x, y, 270, 642, 342, 58)) {
               progress.nickname = randomNickname();
               save();
+              syncNickname();
             }
             if (inRect(x, y, 270, 724, 342, 58)) state = "start";
           }
@@ -875,6 +1017,7 @@
           if (next) {
             progress.nickname = next;
             save();
+            syncNickname();
           }
         }
 
@@ -1320,6 +1463,8 @@
           s: 18 + (i % 5) * 12,
           c: ["#65f6ff", "#7d74ff", "#ffd75e", "#52ff9b"][i % 4]
         }));
+        loadLeaderboard();
+        loadCloudProfile();
         requestAnimationFrame(frame);
       })();
     </script>
