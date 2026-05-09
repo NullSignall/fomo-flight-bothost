@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-nickname-input-1";
+        const BUILD = "2026-05-09-share-card-1";
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -270,6 +270,7 @@
         let leaderboardCache = [];
         let cloudReady = false;
         let syncBusy = false;
+        let lastRun = { score: 0, vtc: 0, ath: progress.best, newBest: false, line: "" };
 
         function resetRun() {
           player = { x: 138, y: 438, vy: -360, r: 24, angle: 0 };
@@ -749,10 +750,14 @@
         function crash() {
           const finalScore = Math.floor(score);
           const durationMs = performance.now() - runStartedAt;
+          const oldBest = progress.best;
+          const isNewBest = finalScore > oldBest;
+          const line = gameOverLine();
           state = "over";
           impact = 16;
           progress.coins += runCoins;
           progress.best = Math.max(progress.best, finalScore);
+          lastRun = { score: finalScore, vtc: runCoins, ath: progress.best, newBest: isNewBest, line };
           save();
           syncRun(finalScore, runCoins, durationMs);
           beep("crash");
@@ -920,7 +925,7 @@
           drawBg();
           brandHeader(270, 72);
           text(L("runClosed"), 270, 138, 38, "#effcff", "950");
-          text(gameOverLine(), 270, 182, 17, "#ffd75e", "850");
+          text(lastRun.line || gameOverLine(), 270, 182, 17, "#ffd75e", "850");
           panel(270, 410, 418, 292, "#ff4564");
           metric("PNL", Math.floor(score), 315, "#30ff9f");
           metric(L("earned"), `+${runCoins}`, 385, "#ffd75e");
@@ -1163,14 +1168,307 @@
           }
         }
 
-        function share() {
-          const message = `Fomo Flight: ${Math.floor(score)} PNL, +${runCoins} VTC. Can you beat my ATH?`;
+        async function share() {
+          const data = lastRun.score ? lastRun : { score: Math.floor(score), vtc: runCoins, ath: progress.best, newBest: false, line: gameOverLine() };
+          const message = data.newBest
+            ? `Fomo Flight: NEW ATH ${data.ath} PNL, +${data.vtc} VTC. Can you beat it?`
+            : `Fomo Flight: ${data.score} PNL, +${data.vtc} VTC. Can you beat my ATH?`;
           const appLink = `${location.origin}/`;
           const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appLink)}&text=${encodeURIComponent(message)}`;
-          if (tg && tg.openTelegramLink) tg.openTelegramLink(shareUrl);
-          else if (navigator.share) navigator.share({ title: "Fomo Flight", text: message, url: appLink }).catch(() => window.open(shareUrl, "_blank"));
-          else window.open(shareUrl, "_blank");
+          const card = createShareCard(data);
+          try {
+            const blob = await new Promise((resolve) => card.toBlob(resolve, "image/png", 0.96));
+            const file = new File([blob], data.newBest ? "fomo-flight-new-ath.png" : "fomo-flight-run.png", { type: "image/png" });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ title: "Fomo Flight", text: message, files: [file] });
+            } else if (navigator.share) {
+              await navigator.share({ title: "Fomo Flight", text: message, url: appLink });
+            } else {
+              const imageUrl = URL.createObjectURL(blob);
+              window.open(imageUrl, "_blank");
+            }
+          } catch (error) {
+            if (error && error.name === "AbortError") return;
+            if (tg && tg.openTelegramLink) tg.openTelegramLink(shareUrl);
+            else window.open(shareUrl, "_blank");
+          }
           beep("buy");
+        }
+
+        function createShareCard(run) {
+          const card = document.createElement("canvas");
+          card.width = 1080;
+          card.height = 1920;
+          const c = card.getContext("2d");
+          const victory = run.newBest;
+          const skin = selectedSkin();
+          const bg = c.createLinearGradient(0, 0, 0, 1920);
+          bg.addColorStop(0, "#030712");
+          bg.addColorStop(0.48, "#071329");
+          bg.addColorStop(1, "#040613");
+          c.fillStyle = bg;
+          c.fillRect(0, 0, 1080, 1920);
+
+          cardGlow(c, 250, 140, 460, victory ? "rgba(0,255,180,.18)" : "rgba(255,60,98,.16)");
+          cardGlow(c, 830, 420, 520, "rgba(0,218,255,.13)");
+          cardGlow(c, 540, 1600, 560, "rgba(125,92,255,.16)");
+          drawCardGrid(c);
+          drawCardMarket(c, victory);
+          drawCardCoins(c, victory);
+
+          cardText(c, "VT VIBES", 540, 124, 44, "#effcff", 950);
+          cardText(c, "crypto arcade flight", 540, 170, 23, "#7de9ff", 800);
+          cardText(c, "FOMO FLIGHT", 540, 250, 88, "#effcff", 950, true);
+
+          const headline = victory ? "\u041D\u041E\u0412\u042B\u0419 ATH" : "\u0420\u042B\u041D\u041E\u041A \u0417\u0410\u0411\u0420\u0410\u041B \u0421\u0412\u041E\u0401";
+          const sub = victory ? "\u0420\u042B\u041D\u041E\u041A \u0415\u0429\u0415 \u041D\u0415 \u0421\u041F\u0418\u0422" : (run.line || "\u041C\u0410\u0420\u041A\u0415\u0422\u041C\u0415\u0419\u041A\u0415\u0420 \u041F\u041E\u0419\u041C\u0410\u041B \u041B\u0423\u0414\u0418\u041A\u0410").toUpperCase();
+          cardText(c, headline, 540, 360, victory ? 70 : 58, victory ? "#30ff9f" : "#ff4968", 950, true);
+          cardText(c, sub, 540, 430, 32, "#ffd75e", 900);
+
+          drawCardRocket(c, 540, victory ? 670 : 690, victory ? 2.8 : 2.55, victory ? -0.08 : 0.22, skin, victory);
+          if (!victory) drawCardImpact(c, 720, 760);
+
+          drawResultPanel(c, run, victory);
+          cardText(c, victory ? "\u041F\u041E\u041F\u0420\u041E\u0411\u0423\u0419 \u041E\u0411\u041E\u0413\u041D\u0410\u0422\u042C" : "\u041E\u0422\u042B\u0413\u0420\u0410\u0422\u042C\u0421\u042F \u0412 FOMO FLIGHT", 540, 1718, 44, "#effcff", 950, true);
+          cardText(c, "@FomoFlightBot", 540, 1810, 29, "#7de9ff", 850);
+          return card;
+        }
+
+        function drawResultPanel(c, run, victory) {
+          const x = 130;
+          const y = 1050;
+          const w = 820;
+          const h = 430;
+          c.save();
+          c.shadowColor = victory ? "#30ff9f" : "#ff4564";
+          c.shadowBlur = 34;
+          cardRound(c, x, y, w, h, 22, "rgba(5,13,28,.90)");
+          c.shadowBlur = 0;
+          c.strokeStyle = victory ? "rgba(48,255,159,.86)" : "rgba(255,69,100,.86)";
+          c.lineWidth = 4;
+          cardRoundedPath(c, x, y, w, h, 22);
+          c.stroke();
+          cardText(c, displayName(), 540, y + 58, 40, "#effcff", 950);
+          cardText(c, selectedSkin().name.toUpperCase(), 540, y + 104, 24, selectedSkin().accent, 850);
+          cardMetric(c, "PNL", run.score, 300, y + 218, "#30ff9f");
+          cardMetric(c, "VTC", `+${run.vtc}`, 540, y + 218, "#ffd75e");
+          cardMetric(c, "ATH", run.ath, 780, y + 218, "#7de9ff");
+          cardText(c, "\u0421\u041C\u041E\u0416\u0415\u0428\u042C \u041E\u0411\u041E\u0413\u041D\u0410\u0422\u042C \u041C\u041E\u0419 \u041F\u041E\u041B\u0401\u0422?", 540, y + 354, 29, "#d9f8ff", 900);
+          c.restore();
+        }
+
+        function cardMetric(c, label, value, x, y, color) {
+          cardText(c, label, x, y - 42, 25, "#7d9eab", 850);
+          cardText(c, String(value), x, y + 10, 58, color, 950, true);
+        }
+
+        function drawCardRocket(c, x, y, scale, angle, skin, victory) {
+          c.save();
+          c.translate(x, y);
+          c.rotate(angle);
+          c.scale(scale, scale);
+          c.shadowColor = skin.trail;
+          c.shadowBlur = 24;
+          c.fillStyle = skin.trim;
+          cardPath(c, [[-35, -22], [-70, -42], [-10, -38], [20, -18]]);
+          cardPath(c, [[-35, 22], [-70, 42], [-10, 38], [20, 18]]);
+          const metal = c.createLinearGradient(-70, -35, 80, 35);
+          metal.addColorStop(0, "#07111f");
+          metal.addColorStop(0.28, skin.body);
+          metal.addColorStop(0.55, "#101827");
+          metal.addColorStop(0.78, "#dce8ff");
+          metal.addColorStop(1, "#070b14");
+          c.fillStyle = metal;
+          c.beginPath();
+          c.moveTo(-58, -23);
+          c.bezierCurveTo(-28, -45, 38, -43, 80, -12);
+          c.bezierCurveTo(92, -3, 92, 3, 80, 12);
+          c.bezierCurveTo(38, 43, -28, 45, -58, 23);
+          c.bezierCurveTo(-76, 8, -76, -8, -58, -23);
+          c.closePath();
+          c.fill();
+          c.shadowBlur = 0;
+          c.strokeStyle = "rgba(239,252,255,.78)";
+          c.lineWidth = 2.2;
+          c.stroke();
+          c.strokeStyle = skin.accent;
+          c.lineWidth = 5;
+          c.beginPath();
+          c.moveTo(-50, -19);
+          c.bezierCurveTo(-18, -34, 28, -30, 58, -11);
+          c.stroke();
+          c.beginPath();
+          c.moveTo(-48, 20);
+          c.bezierCurveTo(-20, 34, 28, 29, 51, 12);
+          c.stroke();
+          cardCircle(c, -18, 0, 29, "#06101c");
+          c.strokeStyle = "#2477ff";
+          c.lineWidth = 7;
+          c.beginPath();
+          c.arc(-18, 0, 29, 0, Math.PI * 2);
+          c.stroke();
+          cardText(c, skin.market, -18, 2, skin.market.length > 3 ? 13 : 16, skin.accent, 950);
+          cardRound(c, 34, -20, 36, 40, 15, "rgba(4,10,18,.94)");
+          cardRound(c, 52, -9, 8, 18, 5, skin.cockpit);
+          cardRound(c, -78, -17, 22, 34, 7, "#07101b");
+          for (let i = 0; i < 12; i += 1) {
+            c.globalAlpha = 0.75 - i * 0.045;
+            c.fillStyle = i % 2 ? "#8b5cff" : skin.trail;
+            c.fillRect(-92 - i * 16, -10 + Math.sin(i) * 11, 40, 5);
+          }
+          c.globalAlpha = 1;
+          cardRound(c, -70, 34, 34, 42, 7, "rgba(5,16,30,.96)");
+          cardText(c, "VT", -53, 55, 14, "#45f4ff", 950);
+          if (victory) {
+            c.strokeStyle = "#30ff9f";
+            c.lineWidth = 2;
+            for (let i = 0; i < 5; i += 1) {
+              c.beginPath();
+              c.arc(-18, 0, 48 + i * 12, -0.4, 0.4);
+              c.stroke();
+            }
+          }
+          c.restore();
+        }
+
+        function drawCardGrid(c) {
+          c.save();
+          c.strokeStyle = "rgba(33,79,120,.24)";
+          c.lineWidth = 1;
+          for (let x = 0; x <= 1080; x += 54) cardLine(c, x, 0, x, 1920);
+          for (let y = 0; y <= 1920; y += 54) cardLine(c, 0, y, 1080, y);
+          c.strokeStyle = "rgba(45,240,255,.10)";
+          for (let x = -160; x < 1080; x += 210) cardLine(c, x, 0, x + 360, 1920);
+          c.restore();
+        }
+
+        function drawCardMarket(c, victory) {
+          c.save();
+          const colors = victory ? ["#30ff9f", "#00d9ff", "#7d6cff"] : ["#ff4564", "#7d6cff", "#00d9ff"];
+          for (let i = 0; i < 12; i += 1) {
+            const x = 620 + i * 34;
+            const h = 70 + Math.sin(i * 1.2) * 35 + (victory ? i * 8 : (11 - i) * 7);
+            const y = 485 - h * 0.35;
+            c.strokeStyle = colors[i % colors.length] + "88";
+            c.lineWidth = 5;
+            cardLine(c, x, y - 38, x, y + h + 38);
+            cardRound(c, x - 13, y, 26, h, 4, colors[i % colors.length] + "66");
+          }
+          c.strokeStyle = victory ? "rgba(48,255,159,.46)" : "rgba(255,69,100,.42)";
+          c.lineWidth = 5;
+          c.beginPath();
+          for (let x = 40; x <= 1040; x += 80) {
+            const y = 1520 + Math.sin(x * 0.015) * 80 + (victory ? -x * 0.18 : x * 0.08);
+            if (x === 40) c.moveTo(x, y); else c.lineTo(x, y);
+          }
+          c.stroke();
+          c.restore();
+        }
+
+        function drawCardCoins(c, victory) {
+          const pts = victory
+            ? [[210, 660, 34], [850, 650, 38], [170, 990, 28], [900, 1000, 30], [330, 1520, 26], [760, 1545, 30]]
+            : [[190, 760, 30], [860, 610, 34], [170, 1160, 26], [920, 1130, 30], [340, 1555, 24], [770, 1530, 28]];
+          pts.forEach(([x, y, r], i) => {
+            c.save();
+            c.globalAlpha = 0.9;
+            c.translate(x, y);
+            c.rotate(i * 0.3);
+            c.scale(0.7 + (i % 3) * 0.12, 1);
+            cardCoin(c, 0, 0, r);
+            c.restore();
+          });
+        }
+
+        function drawCardImpact(c, x, y) {
+          c.save();
+          for (let i = 0; i < 20; i += 1) {
+            const a = i * 0.62;
+            const len = 50 + (i % 5) * 18;
+            c.strokeStyle = i % 2 ? "#ffd75e" : "#ff4564";
+            c.globalAlpha = 0.7;
+            c.lineWidth = 4;
+            cardLine(c, x, y, x + Math.cos(a) * len, y + Math.sin(a) * len);
+          }
+          c.restore();
+        }
+
+        function cardCoin(c, x, y, r) {
+          cardCircle(c, x, y, r, "#ffd75e");
+          c.strokeStyle = "#fff5b3";
+          c.lineWidth = 5;
+          c.beginPath();
+          c.arc(x, y, r - 8, 0, Math.PI * 2);
+          c.stroke();
+          c.strokeStyle = "#2477ff";
+          c.lineWidth = 4;
+          c.beginPath();
+          c.arc(x, y, r * 0.48, -0.2, Math.PI * 1.72);
+          c.stroke();
+          cardText(c, "VT", x, y + 1, Math.floor(r * 0.58), "#092032", 950);
+        }
+
+        function cardGlow(c, x, y, r, color) {
+          const g = c.createRadialGradient(x, y, 0, x, y, r);
+          g.addColorStop(0, color);
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          c.fillStyle = g;
+          c.fillRect(0, 0, 1080, 1920);
+        }
+
+        function cardText(c, s, x, y, size, color, weight, stroke = false) {
+          c.save();
+          c.font = `${weight || 800} ${size}px Inter, system-ui, sans-serif`;
+          c.textAlign = "center";
+          c.textBaseline = "middle";
+          if (stroke) {
+            c.shadowColor = "rgba(0,229,255,.45)";
+            c.shadowBlur = 18;
+            c.lineWidth = Math.max(4, size * 0.08);
+            c.strokeStyle = "rgba(3,8,18,.95)";
+            c.strokeText(String(s), x, y);
+          }
+          c.fillStyle = color;
+          c.fillText(String(s), x, y);
+          c.restore();
+        }
+
+        function cardRound(c, x, y, w, h, r, fill) {
+          cardRoundedPath(c, x, y, w, h, r);
+          c.fillStyle = fill;
+          c.fill();
+        }
+
+        function cardRoundedPath(c, x, y, w, h, r) {
+          c.beginPath();
+          c.moveTo(x + r, y);
+          c.arcTo(x + w, y, x + w, y + h, r);
+          c.arcTo(x + w, y + h, x, y + h, r);
+          c.arcTo(x, y + h, x, y, r);
+          c.arcTo(x, y, x + w, y, r);
+          c.closePath();
+        }
+
+        function cardCircle(c, x, y, r, fill) {
+          c.fillStyle = fill;
+          c.beginPath();
+          c.arc(x, y, r, 0, Math.PI * 2);
+          c.fill();
+        }
+
+        function cardLine(c, x1, y1, x2, y2) {
+          c.beginPath();
+          c.moveTo(x1, y1);
+          c.lineTo(x2, y2);
+          c.stroke();
+        }
+
+        function cardPath(c, points) {
+          c.beginPath();
+          c.moveTo(points[0][0], points[0][1]);
+          points.slice(1).forEach((p) => c.lineTo(p[0], p[1]));
+          c.closePath();
+          c.fill();
         }
 
         function askNickname() {

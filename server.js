@@ -9,7 +9,7 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const botToken = process.env.BOT_TOKEN || "";
 const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.json");
-const buildVersion = "2026-05-09-nickname-input-1";
+const buildVersion = "2026-05-09-share-card-1";
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 900],
