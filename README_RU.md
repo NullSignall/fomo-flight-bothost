@@ -23,9 +23,12 @@ BOT_TOKEN=токен_бота_от_BotFather
 PORT=3000
 DATA_PATH=./data/store.json
 PUBLIC_URL=https://твой-домен.bothost.tech
+MINI_APP_LINK=https://t.me/FomoFlightBot?startapp=share
+SHARE_DIR=./data/share
 ```
 
 `PUBLIC_URL` нужен, чтобы бот отправлял кнопку запуска Mini App после команды `/start`.
+`MINI_APP_LINK` нужен для правильной ссылки в репостах: пользователь должен попадать не на сайт Bothost, а в Telegram Mini App.
 
 ## Telegram webhook
 

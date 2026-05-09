@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-share-card-1";
+        const BUILD = "2026-05-09-story-share-1";
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -271,6 +271,7 @@
         let cloudReady = false;
         let syncBusy = false;
         let lastRun = { score: 0, vtc: 0, ath: progress.best, newBest: false, line: "" };
+        let miniAppLink = "https://t.me/FomoFlightBot?startapp=share";
 
         function resetRun() {
           player = { x: 138, y: 438, vy: -360, r: 24, angle: 0 };
@@ -484,6 +485,14 @@
           } catch {
             leaderboardCache = [];
           }
+        }
+
+        async function loadConfig() {
+          try {
+            const response = await fetch("/api/config");
+            const data = await response.json();
+            if (data.miniAppLink) miniAppLink = data.miniAppLink;
+          } catch {}
         }
 
         async function syncNickname() {
@@ -1173,11 +1182,23 @@
           const message = data.newBest
             ? `Fomo Flight: NEW ATH ${data.ath} PNL, +${data.vtc} VTC. Can you beat it?`
             : `Fomo Flight: ${data.score} PNL, +${data.vtc} VTC. Can you beat my ATH?`;
-          const appLink = `${location.origin}/`;
+          const appLink = miniAppLink;
           const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appLink)}&text=${encodeURIComponent(message)}`;
           const card = createShareCard(data);
           try {
             const blob = await new Promise((resolve) => card.toBlob(resolve, "image/png", 0.96));
+            if (tg && tg.shareToStory && hasTelegramAuth()) {
+              const media = await uploadShareCard(card);
+              tg.shareToStory(media.mediaUrl, {
+                text: message,
+                widget_link: {
+                  url: media.miniAppLink || appLink,
+                  name: "Play Fomo Flight"
+                }
+              });
+              beep("buy");
+              return;
+            }
             const file = new File([blob], data.newBest ? "fomo-flight-new-ath.png" : "fomo-flight-run.png", { type: "image/png" });
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
               await navigator.share({ title: "Fomo Flight", text: message, files: [file] });
@@ -1193,6 +1214,14 @@
             else window.open(shareUrl, "_blank");
           }
           beep("buy");
+        }
+
+        async function uploadShareCard(card) {
+          const image = card.toDataURL("image/png");
+          return api("/api/share-card", {
+            method: "POST",
+            body: { image }
+          });
         }
 
         function createShareCard(run) {
@@ -1961,6 +1990,7 @@
           s: 18 + (i % 5) * 12,
           c: ["#65f6ff", "#7d74ff", "#ffd75e", "#52ff9b"][i % 4]
         }));
+        loadConfig();
         loadLeaderboard();
         loadCloudProfile();
         requestAnimationFrame(frame);

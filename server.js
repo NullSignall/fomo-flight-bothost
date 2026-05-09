@@ -9,7 +9,10 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const botToken = process.env.BOT_TOKEN || "";
 const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.json");
-const buildVersion = "2026-05-09-share-card-1";
+const publicUrl = String(process.env.PUBLIC_URL || "https://bot-1778289451-5878-nullsignal.bothost.tech").replace(/\/+$/, "");
+const miniAppLink = process.env.MINI_APP_LINK || "https://t.me/FomoFlightBot?startapp=share";
+const shareDir = process.env.SHARE_DIR || path.join(__dirname, "data", "share");
+const buildVersion = "2026-05-09-story-share-1";
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 900],
@@ -28,7 +31,7 @@ const skinPrices = new Map([
   ["btc", 50000]
 ]);
 
-app.use(express.json({ limit: "64kb" }));
+app.use(express.json({ limit: "6mb" }));
 app.use((req, res, next) => {
   res.setHeader("x-fomo-flight-build", buildVersion);
   next();
@@ -50,6 +53,19 @@ app.use(express.static(path.join(__dirname, "public"), {
 app.get("/health", (_, res) => {
   res.json({ ok: true, app: "fomo-flight", build: buildVersion });
 });
+
+app.get("/api/config", (_, res) => {
+  res.json({ miniAppLink, publicUrl });
+});
+
+app.use("/share", express.static(shareDir, {
+  etag: false,
+  lastModified: false,
+  maxAge: "7d",
+  setHeaders: (res) => {
+    res.setHeader("cache-control", "public, max-age=604800, immutable");
+  }
+}));
 
 app.get("/api/leaderboard", (_, res) => {
   const store = readStore();
@@ -153,6 +169,19 @@ app.post("/api/daily/claim", auth, (req, res) => {
   store.users[user.telegramId] = user;
   writeStore(store);
   res.json({ claimed: true, profile: user });
+});
+
+app.post("/api/share-card", auth, (req, res) => {
+  const image = String(req.body.image || "");
+  const match = image.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+  if (!match || match[1].length > 5_500_000) return res.status(400).json({ error: "bad_image" });
+
+  const userId = String(req.telegramUser.id);
+  const id = `${userId}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
+  const fileName = `${id}.png`;
+  fs.mkdirSync(shareDir, { recursive: true });
+  fs.writeFileSync(path.join(shareDir, fileName), Buffer.from(match[1], "base64"));
+  res.json({ mediaUrl: `${publicUrl}/share/${fileName}`, miniAppLink });
 });
 
 app.get("*", (_, res) => {
