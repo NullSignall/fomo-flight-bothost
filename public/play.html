@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-medallions-1";
+        const BUILD = "2026-05-09-icons-1";
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -1893,7 +1893,9 @@
           ctx.arc(-19, 0, spec.core, 0, Math.PI * 2);
           ctx.stroke();
 
-          if (skin.market === "VT") {
+          if (drawSkinCoreIcon(skin, -19, 0, spec.core)) {
+            // Custom premium marks stay readable at shop/gameplay size.
+          } else if (skin.market === "VT") {
             ctx.fillStyle = skin.accent;
             roundRect(-31, 6, 6, 12, 3, skin.accent);
             roundRect(-20, -2, 7, 20, 3, skin.accent);
@@ -1906,16 +1908,6 @@
             ctx.fillText(skin.market, -19, 1);
           }
 
-          if (spec.cockpit === "doge" || spec.cockpit === "pepe") {
-            ctx.fillStyle = spec.cockpit === "doge" ? "#fff2c6" : "#07170b";
-            circle(-29, -10, 3.2);
-            circle(-9, -10, 3.2);
-            ctx.strokeStyle = spec.cockpit === "doge" ? "#7a5b1c" : "#b4ff4a";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(-19, 6, 7, 0.16, Math.PI - 0.16);
-            ctx.stroke();
-          }
         }
 
         function drawRocketDetails(skin, spec) {
@@ -1981,6 +1973,89 @@
           }
         }
 
+        function drawSkinCoreIcon(skin, x, y, r) {
+          if (!["doge", "pepe", "eth", "btc", "sol", "bnb", "link"].includes(skin.id)) return false;
+          ctx.save();
+          ctx.translate(x, y);
+          if (skin.id === "doge") {
+            circle(0, 0, r * 0.66, "#f6d48a");
+            ctx.fillStyle = "#07101b";
+            circle(-7, -4, 3.2);
+            circle(7, -4, 3.2);
+            ctx.strokeStyle = "#7a4c00";
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.arc(0, 5, 8, 0.1, Math.PI - 0.1);
+            ctx.stroke();
+          } else if (skin.id === "pepe") {
+            circle(0, 0, r * 0.68, "#83ff4a");
+            ctx.fillStyle = "#07101b";
+            circle(-8, -5, 3.6);
+            circle(8, -5, 3.6);
+            ctx.strokeStyle = "#07101b";
+            ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            ctx.arc(0, 5, 9, 0.12, Math.PI - 0.12);
+            ctx.stroke();
+          } else if (skin.id === "eth") {
+            ctx.fillStyle = "#dce5ff";
+            path([[0, -15], [10, 1], [0, 7], [-10, 1]]);
+            ctx.fillStyle = "#8b7dff";
+            path([[0, 10], [10, 4], [0, 17], [-10, 4]]);
+          } else if (skin.id === "btc") {
+            ctx.fillStyle = "#ffd75e";
+            path([[-13, -12], [-3, -20], [5, -12], [15, -18], [10, -5], [-10, -5]]);
+            ctx.font = "950 19px Inter, system-ui, sans-serif";
+            ctx.fillStyle = "#ffd75e";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("B", 0, 7);
+          } else if (skin.id === "sol") {
+            ctx.fillStyle = "#22ffd0";
+            roundRect(-12, -11, 24, 5, 3, "#22ffd0");
+            roundRect(-8, -2, 24, 5, 3, "#8b5cff");
+            roundRect(-12, 7, 24, 5, 3, "#ff45d7");
+          } else if (skin.id === "bnb") {
+            ctx.fillStyle = "#ffd75e";
+            path([[0, -13], [8, -5], [0, 3], [-8, -5]]);
+            path([[-11, 0], [-5, 6], [-11, 12], [-17, 6]]);
+            path([[11, 0], [17, 6], [11, 12], [5, 6]]);
+            path([[0, 6], [7, 13], [0, 20], [-7, 13]]);
+          } else if (skin.id === "link") {
+            ctx.strokeStyle = "#8aa8ff";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i += 1) {
+              const a = Math.PI / 6 + i * Math.PI / 3;
+              const px = Math.cos(a) * 13;
+              const py = Math.sin(a) * 13;
+              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            circle(0, 0, 4, "#8aa8ff");
+          }
+          ctx.restore();
+          return true;
+        }
+
+        function drawMarketIcon(skin, x, y, r) {
+          ctx.save();
+          ctx.translate(x, y);
+          const s = r / 18;
+          ctx.scale(s, s);
+          if (drawSkinCoreIcon(skin, 0, 0, 24)) {
+            ctx.restore();
+            return;
+          }
+          ctx.font = `950 ${Math.max(8, Math.floor(18 * (skin.market.length > 3 ? 0.72 : 0.86)))}px Inter, system-ui, sans-serif`;
+          ctx.fillStyle = "#07101b";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(skin.market, 0, 1);
+          ctx.restore();
+        }
+
         function drawMarketMedallion(skin, x, y, r) {
           ctx.save();
           ctx.shadowColor = skin.accent;
@@ -2001,11 +2076,7 @@
           ctx.beginPath();
           ctx.arc(x, y, r * 0.52, -0.2, Math.PI * 1.72);
           ctx.stroke();
-          ctx.font = `950 ${Math.max(5, Math.floor(r * (skin.market.length > 3 ? 0.38 : 0.46)))}px Inter, system-ui, sans-serif`;
-          ctx.fillStyle = "#07101b";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(skin.market, x, y + 0.5);
+          drawMarketIcon(skin, x, y + 0.5, r * 0.78);
           ctx.restore();
         }
 
@@ -2162,8 +2233,8 @@
           ctx.lineWidth = selected ? 2.5 : 1.5;
           roundedPath(x - 44, y - 34, 88, 68, 12);
           ctx.stroke();
-          drawRocket(x, y - 2, 0.46, 0, skin, "shop");
-          drawMarketMedallion(skin, x + 30, y + 22, 10);
+          drawRocket(x + 1, y - 3, 0.52, 0, skin, "shop");
+          drawMarketMedallion(skin, x + 30, y + 22, 11.5);
           ctx.restore();
         }
 
