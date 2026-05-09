@@ -1,0 +1,1328 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#070914" />
+    <title>Fomo Flight Play Preview</title>
+    <style>
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #070914; touch-action: none; }
+      body {
+        display: grid;
+        place-items: center;
+        padding: max(env(safe-area-inset-top), 8px) max(env(safe-area-inset-right), 8px) max(env(safe-area-inset-bottom), 8px) max(env(safe-area-inset-left), 8px);
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at 50% 0%, rgba(0, 229, 255, 0.18), transparent 32rem),
+          linear-gradient(180deg, #070914 0%, #090d1f 55%, #070914 100%);
+      }
+      canvas {
+        width: min(100vw, calc(100vh * 9 / 16));
+        height: min(100vh, calc(100vw * 16 / 9));
+        max-width: 540px;
+        max-height: 960px;
+        border: 1px solid rgba(125, 236, 255, 0.28);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38), 0 0 54px rgba(0, 229, 255, 0.12);
+        background: #070914;
+        display: block;
+      }
+    </style>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  </head>
+  <body>
+    <canvas id="game" width="540" height="960"></canvas>
+    <script>
+      (() => {
+        const W = 540;
+        const H = 960;
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        const KEY = "fomo-flight-preview-v1";
+        const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+        const tgUser = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+        const defaultLang = ((tgUser && tgUser.language_code) || navigator.language || "").toLowerCase().startsWith("ru") ? "ru" : "en";
+        setupTelegram();
+        const skins = [
+          { id: "vt", name: "VT Rocket", market: "VT", price: 0, body: "#15e8ff", trim: "#7967ff", cockpit: "#baffff", trail: "#00f5ff", accent: "#30ff9f", fin: "split" },
+          { id: "ton", legacy: "gold", name: "TON Jet", market: "TON", price: 900, body: "#20a7ff", trim: "#0d56ff", cockpit: "#d9f6ff", trail: "#18dcff", accent: "#35e8ff", fin: "delta" },
+          { id: "xrp", legacy: "diamond", name: "XRP Wing", market: "XRP", price: 1400, body: "#d9e5f2", trim: "#667b8f", cockpit: "#eff9ff", trail: "#c7d5e2", accent: "#f2f6ff", fin: "blade" },
+          { id: "trx", legacy: "ghost", name: "TRX Spear", market: "TRX", price: 2100, body: "#ff344f", trim: "#8b1025", cockpit: "#ffe5e9", trail: "#ff3c63", accent: "#ff7a8f", fin: "spear" },
+          { id: "ada", name: "ADA Halo", market: "ADA", price: 2900, body: "#2f7dff", trim: "#123c8a", cockpit: "#e5f0ff", trail: "#4db8ff", accent: "#8fd4ff", fin: "halo" },
+          { id: "avax", name: "AVAX Blade", market: "AVAX", price: 3900, body: "#ff4b4b", trim: "#7f1111", cockpit: "#ffe8e8", trail: "#ff6161", accent: "#ffb0b0", fin: "blade" },
+          { id: "dot", name: "DOT Pulse", market: "DOT", price: 5200, body: "#ff3fad", trim: "#6a0d47", cockpit: "#ffe3f5", trail: "#ff5fc1", accent: "#ff9ce0", fin: "comet" },
+          { id: "bnb", name: "BNB Forge", market: "BNB", price: 7000, body: "#f3ba2f", trim: "#7a5400", cockpit: "#fff4c2", trail: "#ffd75e", accent: "#fff08a", fin: "crown" },
+          { id: "doge", name: "DOGE Comet", market: "DOGE", price: 9400, body: "#d9b46c", trim: "#7a5b1c", cockpit: "#fff1ca", trail: "#f2c66a", accent: "#ffe08a", fin: "comet" },
+          { id: "pepe", name: "PEPE Neon", market: "PEPE", price: 12500, body: "#59ff62", trim: "#114d24", cockpit: "#eaffcc", trail: "#83ff4a", accent: "#f5ff3d", fin: "frog" },
+          { id: "link", name: "LINK Node", market: "LINK", price: 16500, body: "#2a5ada", trim: "#102a6b", cockpit: "#e6edff", trail: "#4f7cff", accent: "#8aa8ff", fin: "hex" },
+          { id: "sol", legacy: "bull", name: "SOL Flare", market: "SOL", price: 22000, body: "#39ffa8", trim: "#7a4dff", cockpit: "#d6fff1", trail: "#20ffc8", accent: "#ff45d7", fin: "split" },
+          { id: "ltc", name: "LTC Silver", market: "LTC", price: 28500, body: "#c8d2df", trim: "#52606e", cockpit: "#f4f8ff", trail: "#d5e2f0", accent: "#ffffff", fin: "blade" },
+          { id: "eth", name: "ETH Prism", market: "ETH", price: 38000, body: "#8aa8ff", trim: "#4545b8", cockpit: "#edf1ff", trail: "#7b8cff", accent: "#b9c8ff", fin: "prism" },
+          { id: "btc", name: "BTC Crown", market: "BTC", price: 50000, body: "#ffb629", trim: "#7a4c00", cockpit: "#fff3bf", trail: "#ffd35a", accent: "#fff08a", fin: "crown" }
+        ];
+        const copy = {
+          en: {
+            flight: "crypto arcade flight",
+            tagline: "TAP TO FLY. HOLD THE LINE.",
+            best: "BEST",
+            skin: "SKIN",
+            coins: "VTC",
+            daily: "DAILY",
+            received: "RECEIVED",
+            wallet: "WALLET",
+            play: "PLAY",
+            vault: "SKIN VAULT",
+            leaders: "LEADERS",
+            dailyTitle: "DAILY DROP",
+            back: "BACK",
+            soundOn: "SOUND ON",
+            soundOff: "SOUND OFF",
+            claim: "+50 DAILY",
+            claimed: "RECEIVED",
+            unlocked: "UNLOCKED",
+            equipped: "EQUIPPED",
+            select: "SELECT",
+            locked: "LOCKED",
+            flightLive: "LIVE RUN",
+            shareRun: "SHARE RUN",
+            restart: "RESTART",
+            runClosed: "MAKERS GOT YOU",
+            earned: "VTC EARNED",
+            localLeague: "LOCAL LEAGUE",
+            you: "YOU",
+            page: "PAGE",
+            streak: "STREAK",
+            day: "DAY",
+            collect: "COLLECT",
+            comeBack: "COME BACK TOMORROW",
+            nicknameTitle: "CALLSIGN",
+            nicknameHint: "Choose how you appear in the leaderboard",
+            nicknameButton: "SAVE CALLSIGN",
+            nicknameRandom: "RANDOM"
+          },
+          ru: {
+            flight: "\u043a\u0440\u0438\u043f\u0442\u043e \u0430\u0440\u043a\u0430\u0434\u0430",
+            tagline: "\u0422\u0410\u041f\u0410\u0419 \u0418 \u0414\u0415\u0420\u0416\u0418 \u041b\u0418\u041d\u0418\u042e",
+            best: "\u0420\u0415\u041a\u041e\u0420\u0414",
+            skin: "\u0421\u041a\u0418\u041d",
+            coins: "VTC",
+            daily: "\u0414\u0415\u041d\u042c",
+            received: "\u041f\u041e\u041b\u0423\u0427\u0415\u041d\u041e",
+            wallet: "\u0411\u0410\u041b\u0410\u041d\u0421",
+            play: "\u0418\u0413\u0420\u0410\u0422\u042c",
+            vault: "\u0421\u041a\u0418\u041d\u042b",
+            leaders: "\u0420\u0415\u0419\u0422\u0418\u041d\u0413",
+            dailyTitle: "\u0414\u041d\u0415\u0412\u041d\u041e\u0419 \u0414\u0420\u041e\u041f",
+            back: "\u041d\u0410\u0417\u0410\u0414",
+            soundOn: "\u0417\u0412\u0423\u041a \u0412\u041a\u041b",
+            soundOff: "\u0417\u0412\u0423\u041a \u0412\u042b\u041a\u041b",
+            claim: "+50 \u0414\u0415\u041d\u042c",
+            claimed: "\u041f\u041e\u041b\u0423\u0427\u0415\u041d\u041e",
+            unlocked: "\u041e\u0422\u041a\u0420\u042b\u0422",
+            equipped: "\u0412\u042b\u0411\u0420\u0410\u041d",
+            select: "\u0412\u042b\u0411\u0420\u0410\u0422\u042c",
+            locked: "\u0417\u0410\u041a\u0420\u042b\u0422",
+            flightLive: "\u041f\u041e\u041b\u0415\u0422 \u0418\u0414\u0415\u0422",
+            shareRun: "\u041f\u041e\u0414\u0415\u041b\u0418\u0422\u042c\u0421\u042f",
+            restart: "\u0417\u0410\u041d\u041e\u0412\u041e",
+            runClosed: "\u0420\u042b\u041d\u041e\u041a \u0417\u0410\u0411\u0420\u0410\u041b \u0421\u0412\u041e\u0415",
+            earned: "VTC \u0417\u0410\u0411\u0420\u0410\u041d\u041e",
+            localLeague: "\u041b\u041e\u041a\u0410\u041b\u042c\u041d\u0410\u042f \u041b\u0418\u0413\u0410",
+            you: "\u0422\u042b",
+            page: "\u0421\u0422\u0420",
+            streak: "\u0421\u0415\u0420\u0418\u042f",
+            day: "\u0414\u0415\u041d\u042c",
+            collect: "\u0417\u0410\u0411\u0420\u0410\u0422\u042c",
+            comeBack: "\u0417\u0410\u0412\u0422\u0420\u0410 \u0415\u0429\u0415"
+          }
+        };
+        const load = () => {
+          try {
+            const key = storageKey();
+            let raw = localStorage.getItem(key);
+            if (!raw && key !== KEY) raw = localStorage.getItem(KEY);
+            const saved = JSON.parse(raw);
+            return normalizeProgress({ coins: 0, best: 0, selected: "vt", unlocked: ["vt"], lastDaily: "", streak: 0, lang: defaultLang, userId: "", nickname: "", ...saved });
+          } catch {
+            return { coins: 0, best: 0, selected: "vt", unlocked: ["vt"], lastDaily: "", streak: 0, lang: defaultLang, userId: localUserId(), nickname: "" };
+          }
+        };
+        const save = () => localStorage.setItem(storageKey(), JSON.stringify(progress));
+        let progress = load();
+        let state = "start";
+        let shopPage = 0;
+        let player, obstacles, coins, particles, stars, score, runCoins, speed, spawnTimer, impact;
+        let last = performance.now();
+        let muted = false;
+
+        function resetRun() {
+          player = { x: 138, y: 438, vy: -360, r: 24, angle: 0 };
+          obstacles = [];
+          coins = [];
+          particles = [];
+          stars = Array.from({ length: 64 }, (_, i) => ({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            r: 0.7 + Math.random() * 1.8,
+            s: 18 + (i % 5) * 12,
+            c: ["#65f6ff", "#7d74ff", "#ffd75e", "#52ff9b"][i % 4]
+          }));
+          score = 0;
+          runCoins = 0;
+          speed = 205;
+          spawnTimer = 760;
+          impact = 0;
+          state = "game";
+        }
+
+        function today() {
+          return new Date().toISOString().slice(0, 10);
+        }
+
+        function dateKey(offset) {
+          const d = new Date();
+          d.setDate(d.getDate() + offset);
+          return d.toISOString().slice(0, 10);
+        }
+
+        function canCollectDaily() {
+          return progress.lastDaily !== today();
+        }
+
+        function collectDaily() {
+          if (!canCollectDaily()) return false;
+          const yesterday = dateKey(-1);
+          const nextStreak = progress.lastDaily === yesterday ? progress.streak + 1 : 1;
+          progress.streak = nextStreak > 7 ? 1 : nextStreak;
+          progress.coins += 50;
+          progress.lastDaily = today();
+          save();
+          beep("buy");
+          return true;
+        }
+
+        function normalizeProgress(value) {
+          const ids = skins.map((skin) => skin.id);
+          const legacyMap = { gold: "ton", diamond: "xrp", ghost: "trx", bull: "sol" };
+          const selectedRaw = legacyMap[value.selected] || value.selected;
+          const unlocked = Array.isArray(value.unlocked)
+            ? value.unlocked.map((id) => legacyMap[id] || id).filter((id) => ids.includes(id))
+            : ["vt"];
+          if (!unlocked.includes("vt")) unlocked.unshift("vt");
+          const rawStreak = Math.max(0, Math.min(7, Number(value.streak) || 0));
+          const migratedStreak = rawStreak === 0 && value.lastDaily === today() ? 1 : rawStreak;
+          return {
+            ...value,
+            coins: Math.max(0, Number(value.coins) || 0),
+            best: Math.max(0, Number(value.best) || 0),
+            selected: ids.includes(selectedRaw) ? selectedRaw : "vt",
+            unlocked: [...new Set(unlocked)],
+            streak: migratedStreak,
+            lang: value.lang === "en" ? "en" : value.lang === "ru" ? "ru" : defaultLang,
+            userId: currentUserId(),
+            nickname: sanitizeNickname(value.nickname || telegramDisplayName())
+          };
+        }
+
+        function setupTelegram() {
+          if (!tg) return;
+          tg.ready && tg.ready();
+          tg.expand && tg.expand();
+          tg.setHeaderColor && tg.setHeaderColor("#070914");
+          tg.setBackgroundColor && tg.setBackgroundColor("#070914");
+          tg.disableVerticalSwipes && tg.disableVerticalSwipes();
+        }
+
+        function currentUserId() {
+          return tgUser && tgUser.id ? `tg-${tgUser.id}` : localUserId();
+        }
+
+        function telegramDisplayName() {
+          if (!tgUser) return "";
+          return sanitizeNickname(tgUser.username || tgUser.first_name || "");
+        }
+
+        function storageKey() {
+          return `${KEY}:${currentUserId()}`;
+        }
+
+        function localUserId() {
+          let id = localStorage.getItem("fomo-flight-local-user-id");
+          if (!id) {
+            id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+            localStorage.setItem("fomo-flight-local-user-id", id);
+          }
+          return id;
+        }
+
+        function sanitizeNickname(value) {
+          const cleaned = String(value || "").replace(/[^\w\u0430-\u044f\u0410-\u042f\u0451\u0401 -]/g, "").trim().slice(0, 14);
+          return cleaned;
+        }
+
+        function displayName() {
+          return progress.nickname || L("you");
+        }
+
+        function randomNickname() {
+          const names = ["VT Pilot", "Candle Rider", "Fomo Ace", "Moon Tapper", "Liquidity Kid", "Neon Bull", "Gap Hunter"];
+          return names[Math.floor(Math.random() * names.length)];
+        }
+
+        function L(key) {
+          return (copy[progress.lang] || copy.en)[key] || copy.en[key] || key;
+        }
+
+        function toggleLanguage() {
+          progress.lang = progress.lang === "ru" ? "en" : "ru";
+          save();
+        }
+
+        function gameOverLine() {
+          const ru = [
+            "\u041c\u0430\u0440\u043a\u0435\u0442\u043c\u0435\u0439\u043a\u0435\u0440 \u043f\u043e\u0439\u043c\u0430\u043b \u043b\u0443\u0434\u0438\u043a\u0430",
+            "\u0420\u044b\u043d\u043e\u043a \u0432\u044b\u0438\u0433\u0440\u0430\u043b \u044d\u0442\u043e\u0442 \u0440\u0430\u0443\u043d\u0434",
+            "\u0421\u0432\u0435\u0447\u0430 \u0441\u043a\u0430\u0437\u0430\u043b\u0430: \u0431\u0435\u0437 \u0448\u0430\u043d\u0441\u043e\u0432",
+            "\u0424\u043e\u043c\u043e \u0431\u044b\u043b\u043e \u0441\u0438\u043b\u044c\u043d\u0435\u0435 \u043f\u043b\u0430\u043d\u0430",
+            "\u041b\u0438\u043a\u0432\u0438\u0434\u043d\u043e\u0441\u0442\u044c \u0437\u0430\u0431\u0440\u0430\u043b\u0430 \u0431\u0438\u043b\u0435\u0442",
+            "\u0421\u0442\u043e\u043f\u0430 \u043d\u0435 \u0431\u044b\u043b\u043e, \u0437\u0430\u0442\u043e \u0431\u044b\u043b \u0441\u0442\u0438\u043b\u044c",
+            "\u041a\u0438\u0442 \u0447\u0438\u0445\u043d\u0443\u043b \u0432 \u0441\u0442\u0430\u043a\u0430\u043d",
+            "\u0421\u0432\u0435\u0447\u0430 \u0437\u0430\u043a\u0440\u044b\u043b\u0430 \u0441\u0434\u0435\u043b\u043a\u0443 \u0437\u0430 \u0442\u0435\u0431\u044f",
+            "\u041f\u043b\u0435\u0447\u043e \u043f\u043e\u043f\u0440\u043e\u0441\u0438\u043b\u043e \u043f\u043e\u0449\u0430\u0434\u044b",
+            "\u041f\u0430\u043c\u043f \u0443\u0448\u0435\u043b \u0431\u0435\u0437 \u043f\u0430\u0441\u0441\u0430\u0436\u0438\u0440\u043e\u0432",
+            "\u0414\u043d\u0435\u0432\u043d\u0438\u043a \u0437\u0430\u043f\u0438\u0448\u0435\u0442: \u0431\u044b\u043b\u043e \u0431\u043e\u043b\u044c\u043d\u043e",
+            "\u041f\u043b\u0430\u043d \u0431\u044b\u043b \u0445\u043e\u0440\u043e\u0448\u0438\u0439, \u0440\u044b\u043d\u043e\u043a \u043d\u0435 \u0432 \u043a\u0443\u0440\u0441\u0435",
+            "\u0422\u0435\u0439\u043a-\u043f\u0440\u043e\u0444\u0438\u0442 \u043e\u0441\u0442\u0430\u043b\u0441\u044f \u0432 \u043c\u0435\u0447\u0442\u0430\u0445",
+            "\u0424\u0438\u0442\u0438\u043b\u044c \u0441\u0434\u0435\u043b\u0430\u043b \u043a\u043e\u043d\u0442\u0440\u043e\u043b\u044c\u043d\u044b\u0439",
+            "\u0411\u0438\u0440\u0436\u0430 \u0441\u043a\u0430\u0437\u0430\u043b\u0430: \u0441\u043f\u0430\u0441\u0438\u0431\u043e \u0437\u0430 \u043b\u0438\u043a\u0432\u0438\u0434\u043d\u043e\u0441\u0442\u044c",
+            "\u0421\u043b\u0438\u0448\u043a\u043e\u043c \u043a\u0440\u0430\u0441\u0438\u0432\u043e \u043b\u0435\u0442\u0435\u043b",
+            "\u0420\u0430\u043a\u0435\u0442\u0430 \u0432\u0441\u0442\u0440\u0435\u0442\u0438\u043b\u0430 \u043a\u0440\u0430\u0441\u043d\u0443\u044e \u0441\u0432\u0435\u0447\u0443",
+            "\u0413\u044d\u043f \u0431\u044b\u043b \u0447\u0435\u0441\u0442\u043d\u044b\u0439, \u043d\u0435\u0440\u0432\u044b \u043d\u0435\u0442",
+            "\u041c\u0430\u0440\u043a\u0435\u0442 \u0437\u0430\u0431\u0440\u0430\u043b \u043a\u043e\u043c\u0438\u0441\u0441\u0438\u044e \u0434\u0443\u0448\u043e\u0439",
+            "\u0424\u043e\u043c\u043e \u043d\u0430\u0436\u0430\u043b\u043e \u043a\u043d\u043e\u043f\u043a\u0443 \u0440\u0430\u043d\u044c\u0448\u0435 \u043c\u043e\u0437\u0433\u0430",
+            "\u041f\u043e\u043b\u0435\u0442 \u0431\u044b\u043b \u0430\u043b\u044c\u0444\u0430, \u043f\u043e\u0441\u0430\u0434\u043a\u0430 \u0431\u0435\u0442\u0430",
+            "\u0421\u0432\u0435\u0447\u0430 \u0440\u0435\u0448\u0438\u043b\u0430 \u0431\u044b\u0442\u044c \u0441\u0442\u0435\u043d\u043e\u0439",
+            "\u041b\u0443\u0434\u0438\u043a \u043d\u0430\u0439\u0434\u0435\u043d, \u0434\u0435\u043f\u043e\u0437\u0438\u0442 \u043f\u043e\u0442\u0440\u0435\u043f\u0430\u043d",
+            "\u0422\u0440\u0435\u043d\u0434 \u0431\u044b\u043b \u0434\u0440\u0443\u0433, \u043f\u043e\u043a\u0430 \u043d\u0435 \u043f\u0435\u0440\u0435\u0434\u0443\u043c\u0430\u043b",
+            "\u0421\u043a\u0432\u0438\u0437 \u043f\u0440\u0438\u0448\u0435\u043b \u0431\u0435\u0437 \u043f\u0440\u0438\u0433\u043b\u0430\u0448\u0435\u043d\u0438\u044f",
+            "\u041c\u043e\u043d\u0435\u0442\u044b \u043c\u0430\u043d\u0438\u043b\u0438, \u0441\u0432\u0435\u0447\u0438 \u0436\u0434\u0430\u043b\u0438",
+            "\u041a\u0430\u043f\u0438\u0442\u0430\u043d, \u044d\u0442\u043e \u0431\u044b\u043b\u0430 \u043b\u0438\u043a\u0432\u0438\u0434\u0430\u0446\u0438\u044f",
+            "\u0420\u044b\u043d\u043e\u043a \u043d\u0435 \u0441\u043f\u0438\u0442 \u0438 \u0442\u0435\u0431\u0435 \u043d\u0435 \u0434\u0430\u043b",
+            "\u041f\u0430\u043d\u0438\u043a-\u0441\u0435\u043b\u043b \u043c\u0430\u0445\u043d\u0443\u043b \u043a\u0440\u044b\u043b\u043e\u043c",
+            "\u041f\u043e\u043a\u0443\u043f\u0430\u0442\u0435\u043b\u044c \u0441\u0432\u0435\u0440\u0445\u0443 \u043d\u0435 \u043f\u0440\u0438\u0448\u0435\u043b",
+            "\u0424\u0430\u043d\u0434\u0438\u043d\u0433 \u0441\u044a\u0435\u043b \u0437\u0430\u0432\u0442\u0440\u0430\u043a",
+            "\u0427\u0435\u0440\u043d\u044b\u0439 \u043b\u0435\u0431\u0435\u0434\u044c \u0431\u044b\u043b \u043c\u0430\u043b\u0435\u043d\u044c\u043a\u0438\u0439, \u043d\u043e \u0431\u044b\u0441\u0442\u0440\u044b\u0439",
+            "\u041f\u043e\u043b\u0435\u0442 \u043a\u0440\u0430\u0441\u0438\u0432\u044b\u0439, \u043e\u0442\u0447\u0435\u0442 \u0433\u0440\u0443\u0441\u0442\u043d\u044b\u0439",
+            "\u0414\u0438\u0441\u0446\u0438\u043f\u043b\u0438\u043d\u0430 \u0432\u044b\u0448\u043b\u0430 \u043f\u043e\u043a\u0443\u0440\u0438\u0442\u044c",
+            "\u0421\u0432\u0435\u0447\u0430 \u0437\u0430\u043a\u0440\u044b\u043b\u0430 \u0441\u043c\u0435\u043d\u0443",
+            "\u041a\u0438\u0442\u044b \u0445\u043b\u043e\u043f\u043d\u0443\u043b\u0438 \u0434\u0432\u0435\u0440\u044c\u044e",
+            "\u041f\u0443\u043b\u044c\u0441 \u0440\u044b\u043d\u043a\u0430 \u0432\u044b\u0448\u0435 \u043f\u0443\u043b\u044c\u0441\u0430 \u043f\u0438\u043b\u043e\u0442\u0430",
+            "\u0420\u0430\u043a\u0435\u0442\u0430 \u043f\u043e\u043f\u0440\u043e\u0441\u0438\u043b\u0430 \u0440\u0435\u0431\u0430\u043b\u0430\u043d\u0441",
+            "\u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 \u0442\u0430\u043f \u0431\u0443\u0434\u0435\u0442 \u0443\u043c\u043d\u0435\u0435"
+          ];
+          const en = [
+            "Market maker caught the degen",
+            "The market won this round",
+            "That candle had no mercy",
+            "FOMO beat the flight plan",
+            "Liquidity took the ticket",
+            "No stop loss, plenty of style",
+            "A whale sneezed into the book",
+            "The candle closed the trade for you",
+            "Leverage asked for mercy",
+            "The pump left without passengers",
+            "The journal says: that hurt",
+            "Good plan, market disagreed",
+            "Take profit stayed imaginary",
+            "The wick did the final tap",
+            "Exchange thanks you for liquidity",
+            "You were flying too clean",
+            "Rocket met a red candle",
+            "The gap was fair, nerves were not",
+            "Market charged the soul fee",
+            "FOMO clicked before the brain",
+            "Alpha flight, beta landing",
+            "That candle became a wall",
+            "Degen found, wallet scratched",
+            "Trend was friendly, then changed",
+            "Squeeze arrived uninvited",
+            "Coins baited, candles waited",
+            "Captain, that was liquidation",
+            "Market never sleeps, neither did you",
+            "Panic sell waved back",
+            "Top buyer did not show up",
+            "Funding ate breakfast",
+            "Small black swan, very fast",
+            "Pretty flight, ugly report",
+            "Discipline stepped outside",
+            "Candle clocked out",
+            "Whales slammed the door",
+            "Market pulse beat the pilot",
+            "Rocket requested rebalance",
+            "Next tap will be wiser"
+          ];
+          const list = progress.lang === "ru" ? ru : en;
+          const index = Math.abs(Math.floor(score + runCoins * 7)) % list.length;
+          return list[index];
+        }
+
+        function selectedSkin() {
+          return skins.find((skin) => skin.id === progress.selected) || skins[0];
+        }
+
+        function difficultyCurve() {
+          const early = Math.min(1, score / 350);
+          const late = Math.min(1, Math.max(0, score - 350) / 950);
+          const pressure = early * 0.45 + late * 0.55;
+          return {
+            speed: 205 + pressure * 185,
+            gap: 326 - pressure * 104,
+            spawn: 1760 - pressure * 600,
+            margin: 245 - pressure * 28
+          };
+        }
+
+        function beep(kind) {
+          if (muted) return;
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          const ac = beep.ac || (beep.ac = new AudioCtx());
+          const o = ac.createOscillator();
+          const g = ac.createGain();
+          const presets = {
+            flap: [320, 620, 0.055, "triangle", 0.035],
+            coin: [920, 1480, 0.07, "sine", 0.04],
+            crash: [160, 52, 0.18, "sawtooth", 0.06],
+            buy: [620, 1200, 0.13, "triangle", 0.05]
+          };
+          const p = presets[kind] || presets.flap;
+          o.type = p[3];
+          o.frequency.setValueAtTime(p[0], ac.currentTime);
+          o.frequency.exponentialRampToValueAtTime(Math.max(1, p[1]), ac.currentTime + p[2]);
+          g.gain.setValueAtTime(p[4], ac.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + p[2]);
+          o.connect(g);
+          g.connect(ac.destination);
+          o.start();
+          o.stop(ac.currentTime + p[2] + 0.01);
+        }
+
+        function flap() {
+          if (state === "game") {
+            player.vy = -430;
+            beep("flap");
+          }
+        }
+
+        function spawnPair() {
+          const difficulty = difficultyCurve();
+          const gap = difficulty.gap;
+          const center = difficulty.margin + Math.random() * (H - difficulty.margin * 2);
+          const topH = Math.max(94, center - gap / 2);
+          const bottomY = center + gap / 2;
+          obstacles.push({ x: W + 86, y: 0, w: 70, h: topH, top: true, c: Math.random() > 0.5 ? "#1df28d" : "#ff4461" });
+          obstacles.push({ x: W + 86, y: bottomY, w: 70, h: H - bottomY, top: false, c: Math.random() > 0.5 ? "#1df28d" : "#ff4461" });
+          const count = 5 + Math.floor(Math.random() * 4);
+          for (let i = 0; i < count; i += 1) {
+            const t = count === 1 ? 0.5 : i / (count - 1);
+            coins.push({ x: W + 210 + i * 46, y: center - Math.sin(t * Math.PI) * Math.min(46, gap * 0.18), r: 14, spin: 0 });
+          }
+        }
+
+        function update(dt) {
+          if (state !== "game") return;
+          const difficulty = difficultyCurve();
+          speed += (difficulty.speed - speed) * Math.min(1, dt * 1.8);
+          score += speed * dt / 15.5;
+          spawnTimer -= dt * 1000;
+          if (spawnTimer <= 0) {
+            spawnPair();
+            spawnTimer = difficulty.spawn;
+          }
+          player.vy += 1130 * dt;
+          player.y += player.vy * dt;
+          player.angle = Math.max(-0.42, Math.min(0.58, player.vy / 980));
+          if (Math.random() < 0.85) {
+            const s = selectedSkin();
+            particles.push({ x: player.x - 46, y: player.y + (Math.random() - 0.5) * 18, vx: -90 - Math.random() * 70, vy: (Math.random() - 0.5) * 32, life: 0.35, c: s.trail, r: 5 + Math.random() * 4 });
+          }
+          stars.forEach((star) => {
+            star.x -= star.s * dt;
+            if (star.x < -8) { star.x = W + 8; star.y = Math.random() * H; }
+          });
+          obstacles.forEach((ob) => ob.x -= speed * dt);
+          coins.forEach((coin) => { coin.x -= speed * dt; coin.spin += dt * 9; });
+          particles.forEach((p) => { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; });
+          obstacles = obstacles.filter((ob) => ob.x > -120);
+          coins = coins.filter((coin) => coin.x > -60);
+          particles = particles.filter((p) => p.life > 0);
+
+          for (const coin of coins) {
+            if (obstacles.some((ob) => coinHitsObstacle(coin, ob))) {
+              coin.hit = true;
+              continue;
+            }
+            if (Math.hypot(player.x - coin.x, player.y - coin.y) < player.r + coin.r) {
+              coin.hit = true;
+              runCoins += 1;
+              beep("coin");
+              for (let i = 0; i < 7; i += 1) {
+                particles.push({ x: coin.x, y: coin.y, vx: -40 + Math.random() * 80, vy: -70 + Math.random() * 140, life: 0.25, c: "#ffd75e", r: 2 + Math.random() * 4 });
+              }
+            }
+          }
+          coins = coins.filter((coin) => !coin.hit);
+
+          if (player.y < 32 || player.y > H - 32 || obstacles.some(hitObstacle)) crash();
+        }
+
+        function hitObstacle(ob) {
+          const pad = 9;
+          const left = ob.x - ob.w / 2 + pad;
+          const right = ob.x + ob.w / 2 - pad;
+          const top = ob.y + pad;
+          const bottom = ob.y + ob.h - pad;
+          const nx = Math.max(left, Math.min(player.x, right));
+          const ny = Math.max(top, Math.min(player.y, bottom));
+          return Math.hypot(player.x - nx, player.y - ny) < player.r;
+        }
+
+        function coinHitsObstacle(coin, ob) {
+          const left = ob.x - ob.w / 2 - coin.r - 10;
+          const right = ob.x + ob.w / 2 + coin.r + 10;
+          const top = ob.y - coin.r - 10;
+          const bottom = ob.y + ob.h + coin.r + 10;
+          return coin.x >= left && coin.x <= right && coin.y >= top && coin.y <= bottom;
+        }
+
+        function crash() {
+          state = "over";
+          impact = 16;
+          progress.coins += runCoins;
+          progress.best = Math.max(progress.best, Math.floor(score));
+          save();
+          beep("crash");
+        }
+
+        function drawBg() {
+          const g = ctx.createLinearGradient(0, 0, 0, H);
+          g.addColorStop(0, "#030712");
+          g.addColorStop(0.48, "#061022");
+          g.addColorStop(1, "#030711");
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, H);
+          const scan = ctx.createLinearGradient(0, 0, W, H);
+          scan.addColorStop(0, "rgba(0, 229, 255, .10)");
+          scan.addColorStop(0.54, "rgba(125, 92, 255, .04)");
+          scan.addColorStop(1, "rgba(255, 216, 86, .06)");
+          ctx.fillStyle = scan;
+          ctx.fillRect(0, 0, W, H);
+          ctx.strokeStyle = "rgba(33,79,120,.26)";
+          ctx.lineWidth = 1;
+          for (let x = 0; x <= W; x += 27) line(x, 0, x, H);
+          for (let y = 0; y <= H; y += 27) line(0, y, W, y);
+          ctx.strokeStyle = "rgba(45, 240, 255, .16)";
+          for (let x = -60; x < W; x += 128) line(x, 0, x + 170, H);
+          stars.forEach((s) => {
+            ctx.globalAlpha = 0.55;
+            ctx.fillStyle = s.c;
+            circle(s.x, s.y, s.r);
+          });
+          ctx.globalAlpha = 1;
+          drawCodeRain();
+          drawMarketCandles(392, 135, 0.62);
+          ctx.strokeStyle = "rgba(48,255,159,.28)";
+          ctx.lineWidth = 2.6;
+          const drift = Number(score) || 0;
+          ctx.beginPath();
+          for (let x = 0; x <= W + 60; x += 36) {
+            const y = 760 + Math.sin((x + drift) * 0.035) * 30 + Math.sin((x + drift) * 0.012) * 46;
+            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          drawFarCoin();
+        }
+
+        function drawRocket(x, y, scale, angle, skin) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(angle);
+          ctx.scale(scale, scale);
+          drawPremiumRocketBody(skin);
+          ctx.restore();
+        }
+
+        function drawGame() {
+          drawBg();
+          obstacles.forEach(drawCandle);
+          coins.forEach(drawCoin);
+          particles.forEach((p) => {
+            ctx.globalAlpha = Math.max(0, p.life / 0.35);
+            circle(p.x, p.y, p.r, p.c);
+            ctx.globalAlpha = 1;
+          });
+          drawRocket(player.x, player.y, 0.92, player.angle, selectedSkin());
+          ctx.globalAlpha = 0.92;
+          roundRect(22, 20, 496, 86, 14, "rgba(3,8,18,.78)");
+          ctx.globalAlpha = 1;
+          drawVTLogo(54, 62, 22);
+          pill(127, 62, "PNL", String(Math.floor(score)), "#30ff9f");
+          pill(292, 62, L("coins"), String(runCoins), "#ffd75e");
+          pill(451, 62, "ATH", String(Math.max(progress.best, Math.floor(score))), "#7de9ff");
+          text(L("flightLive"), 270, 126, 13, "#5f7d8b", "850");
+        }
+
+        function drawCandle(ob) {
+          ctx.save();
+          ctx.shadowColor = ob.c;
+          ctx.shadowBlur = 24;
+          roundRect(ob.x - ob.w / 2, ob.y, ob.w, ob.h, 7, "rgba(2,8,15,.9)");
+          roundRect(ob.x - ob.w / 2 + 7, ob.y + 8, ob.w - 14, Math.max(0, ob.h - 16), 6, ob.c);
+          ctx.shadowBlur = 0;
+          ctx.globalAlpha = 0.24;
+          roundRect(ob.x - ob.w / 2 + 15, ob.y + 18, 8, Math.max(0, ob.h - 36), 4, "#ffffff");
+          ctx.globalAlpha = 0.28;
+          for (let yy = ob.y + 28; yy < ob.y + ob.h - 18; yy += 34) {
+            line(ob.x - 18, yy, ob.x + 20, yy + 9);
+          }
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = ob.c;
+          ctx.lineWidth = 4;
+          line(ob.x, ob.y - 18, ob.x, ob.y + ob.h + 18);
+          ctx.strokeStyle = "rgba(255,255,255,.22)";
+          ctx.lineWidth = 1;
+          roundedPath(ob.x - ob.w / 2 + 7, ob.y + 8, ob.w - 14, Math.max(0, ob.h - 16), 6);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function drawCoin(c) {
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.scale(Math.max(0.32, Math.abs(Math.cos(c.spin))), 1);
+          drawTinyCoin(0, 0, "#ffd75e", c.r);
+          ctx.restore();
+        }
+
+        function drawTinyCoin(x, y, color, r = 15) {
+          circle(x, y, r, color);
+          ctx.strokeStyle = "#fff5b3";
+          ctx.lineWidth = Math.max(2, r * 0.2);
+          ctx.beginPath();
+          ctx.arc(x, y, r - 4, 0, Math.PI * 2);
+          ctx.stroke();
+          const inner = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+          inner.addColorStop(0, "#19e8ff");
+          inner.addColorStop(0.55, "#2477ff");
+          inner.addColorStop(1, "#8b5cff");
+          ctx.strokeStyle = inner;
+          ctx.lineWidth = Math.max(1.5, r * 0.14);
+          ctx.beginPath();
+          ctx.arc(x, y, r * 0.48, -0.2, Math.PI * 1.72);
+          ctx.stroke();
+          ctx.font = `900 ${Math.max(8, Math.floor(r * 0.58))}px Inter, system-ui, sans-serif`;
+          ctx.fillStyle = "#092032";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("VT", x, y + 1);
+        }
+
+        function drawFarCoin() {
+          if (state === "game") return;
+          const t = performance.now() / 1000;
+          const x = ((t * 58) % (W + 120)) - 60;
+          const y = 675 + Math.sin(t * 1.8) * 34;
+          ctx.save();
+          ctx.globalAlpha = 0.42;
+          ctx.translate(x, y);
+          ctx.scale(Math.max(0.25, Math.abs(Math.cos(t * 4))), 0.55);
+          drawTinyCoin(0, 0, "#ffd75e", 13);
+          ctx.restore();
+        }
+
+        function drawStart() {
+          drawBg();
+          brandHeader(270, 66);
+          text("FOMO FLIGHT", 270, 128, 48, "#effcff", "950");
+          text(L("tagline"), 270, 171, 15, "#4ef4ff", "850");
+          drawHeroRocket(270, 314 + Math.sin(performance.now() / 420) * 8);
+          drawCharmTag(126, 392, 0.9);
+          panel(270, 488, 430, 118, selectedSkin().accent);
+          text(selectedSkin().name.toUpperCase(), 270, 454, 25, "#effcff", "950");
+          drawStartStatChip(176, 498, L("best"), progress.best, "#7de9ff", false);
+          drawStartStatChip(364, 498, L("wallet"), progress.coins, "#ffd75e", true);
+          text(`${selectedSkin().market} MARKET SKIN`, 270, 535, 13, selectedSkin().accent, "850");
+          featureStrip(270, 606);
+          btn(270, 700, 342, 72, L("play"), "#00d9ff");
+          btn(180, 780, 166, 56, L("vault"), "#7d6cff");
+          btn(360, 780, 166, 56, L("leaders"), "#ffd35a");
+          btn(104, 850, 128, 46, progress.lang === "ru" ? "RU" : "EN", "#20e8ff");
+          btn(270, 850, 150, 46, muted ? L("soundOff") : L("soundOn"), "#30ff9f");
+          btn(438, 850, 136, 46, L("daily"), "#ffd35a");
+          text(displayName(), 270, 910, 14, "#7899aa", "850");
+        }
+
+        function drawOver() {
+          drawBg();
+          brandHeader(270, 72);
+          text(L("runClosed"), 270, 138, 38, "#effcff", "950");
+          text(gameOverLine(), 270, 182, 17, "#ffd75e", "850");
+          panel(270, 410, 418, 292, "#ff4564");
+          metric("PNL", Math.floor(score), 315, "#30ff9f");
+          metric(L("earned"), `+${runCoins}`, 385, "#ffd75e");
+          metric("ATH", progress.best, 455, "#7de9ff");
+          metric(L("wallet"), progress.coins, 525, "#d9f8ff");
+          btn(270, 682, 342, 72, L("restart"), "#00d9ff");
+          btn(270, 770, 342, 64, L("vault"), "#7d6cff");
+          btn(270, 852, 342, 58, L("shareRun"), "#ffd35a");
+        }
+
+        function drawShop() {
+          drawBg();
+          brandHeader(270, 58);
+          text(L("vault"), 270, 105, 39, "#effcff", "950");
+          drawWalletCard(270, 154);
+          const visibleSkins = skins.slice(shopPage * 5, shopPage * 5 + 5);
+          visibleSkins.forEach((skin, i) => {
+            const y = 230 + i * 104;
+            const owned = progress.unlocked.includes(skin.id);
+            const selected = progress.selected === skin.id;
+            panel(270, y, 462, 88, selected ? skin.accent : owned ? "#30ff9f" : "#283f5d");
+            drawSkinBadge(94, y, skin, selected);
+            leftText(skin.name, 156, y - 23, 21, "#effcff", "900");
+            leftText(`${skin.market}  |  ${selected ? L("equipped") : owned ? L("unlocked") : `${skin.price} ${L("coins")}`}`, 156, y + 10, 14, selected ? "#30ff9f" : owned ? "#7de9ff" : "#ffd75e", "850");
+            btn(416, y, 112, 44, selected ? L("equipped") : owned ? L("select") : progress.coins >= skin.price ? "BUY" : L("locked"), selected ? "#30ff9f" : owned ? "#00d9ff" : "#ffd35a");
+          });
+          btn(158, 800, 130, 48, "<", "#7d6cff");
+          text(`${L("page")} ${shopPage + 1}/${Math.ceil(skins.length / 5)}`, 270, 800, 16, "#9dc5d5", "850");
+          btn(382, 800, 130, 48, ">", "#7d6cff");
+          btn(270, 882, 342, 58, L("back"), "#7d6cff");
+        }
+
+        function drawLeaders() {
+          drawBg();
+          brandHeader(270, 48);
+          text(L("leaders"), 270, 100, 38, "#effcff", "950");
+          text(`${L("localLeague")}  |  ${displayName()}`, 270, 134, 15, "#ffd75e", "850");
+          const rows = leaderboardRows();
+          rows.forEach((row, i) => {
+            const y = 172 + i * 43;
+            const isYou = row.me;
+            panel(270, y, 430, 34, isYou ? "#30ff9f" : "#283f5d");
+            text(`#${i + 1}`, 82, y + 1, 14, isYou ? "#30ff9f" : "#7d9eab", "900");
+            leftText(row.name, 120, y, 15, isYou ? "#effcff" : "#b9d6df", "900");
+            text(String(row.score), 432, y, 17, isYou ? "#30ff9f" : "#7de9ff", "950");
+          });
+          text(progress.lang === "ru" ? "\u041F\u0440\u043E\u0433\u0440\u0435\u0441\u0441 \u043F\u0440\u0438\u0432\u044F\u0437\u0430\u043D \u043A user id. Telegram \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u043C \u043F\u043E\u0437\u0436\u0435." : "Progress is tied to user id. Telegram sync comes later.", 270, 842, 13, "#7899aa", "780");
+          btn(270, 902, 342, 50, L("back"), "#7d6cff");
+        }
+
+        function drawDaily() {
+          drawBg();
+          brandHeader(270, 66);
+          text(L("dailyTitle"), 270, 128, 42, "#effcff", "950");
+          text(`${L("streak")} ${progress.streak}/7`, 270, 168, 18, "#ffd75e", "900");
+          panel(270, 390, 430, 330, "#ffd35a");
+          for (let i = 1; i <= 7; i += 1) {
+            const col = (i - 1) % 4;
+            const row = Math.floor((i - 1) / 4);
+            const x = 132 + col * 92;
+            const y = 298 + row * 112;
+            const active = i <= progress.streak;
+            const todaySlot = canCollectDaily() && i === ((progress.streak % 7) + 1);
+            ctx.save();
+            ctx.shadowColor = todaySlot ? "#ffd35a" : active ? "#30ff9f" : "#283f5d";
+            ctx.shadowBlur = todaySlot ? 22 : 8;
+            roundRect(x - 34, y - 38, 68, 76, 10, active ? "rgba(8,38,28,.9)" : "rgba(7,15,30,.9)");
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = todaySlot ? "#ffd35a" : active ? "#30ff9f" : "#283f5d";
+            ctx.lineWidth = 2;
+            roundedPath(x - 34, y - 38, 68, 76, 10);
+            ctx.stroke();
+            drawTinyCoin(x, y - 8, active ? "#ffd75e" : "#647383");
+            text(`${L("day")} ${i}`, x, y + 25, 11, active ? "#30ff9f" : "#7d9eab", "850");
+            ctx.restore();
+          }
+          text(canCollectDaily() ? "+50" : L("comeBack"), 270, 592, 34, canCollectDaily() ? "#ffd75e" : "#7d9eab", "950");
+          btn(270, 690, 342, 68, canCollectDaily() ? L("collect") : L("received"), canCollectDaily() ? "#ffd35a" : "#30ff9f");
+          btn(270, 782, 342, 58, L("back"), "#7d6cff");
+        }
+
+        function drawNickname() {
+          drawBg();
+          brandHeader(270, 84);
+          text(L("nicknameTitle"), 270, 172, 42, "#effcff", "950");
+          text(L("nicknameHint"), 270, 214, 15, "#7de9ff", "850");
+          panel(270, 360, 430, 190, "#2defff");
+          drawVTLogo(270, 312, 42);
+          text(displayName(), 270, 384, 34, "#effcff", "950");
+          text(`ID ${progress.userId.slice(-8).toUpperCase()}`, 270, 430, 14, "#7899aa", "850");
+          btn(270, 560, 342, 64, L("nicknameButton"), "#00d9ff");
+          btn(270, 642, 342, 58, L("nicknameRandom"), "#ffd35a");
+          btn(270, 724, 342, 58, L("back"), "#7d6cff");
+        }
+
+        function drawWalletCard(x, y) {
+          ctx.save();
+          ctx.shadowColor = "#ffd35a";
+          ctx.shadowBlur = 16;
+          roundRect(x - 154, y - 25, 308, 50, 10, "rgba(7,15,30,.94)");
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "rgba(255,211,90,.78)";
+          ctx.lineWidth = 2;
+          roundedPath(x - 154, y - 25, 308, 50, 10);
+          ctx.stroke();
+          drawTinyCoin(x - 112, y, "#ffd75e", 14);
+          leftText(L("wallet"), x - 84, y - 7, 12, "#7d9eab", "850");
+          leftText(`${progress.coins} VTC`, x - 84, y + 12, 21, "#ffd75e", "950");
+          ctx.restore();
+        }
+
+        function leaderboardRows() {
+          const best = Math.floor(progress.best);
+          const base = Math.max(best, 840);
+          const rows = [
+            { name: "Pulse", score: base + 780 },
+            { name: "Neon", score: base + 620 },
+            { name: "Candle", score: base + 510 },
+            { name: "Rocket", score: base + 390 },
+            { name: "Whale", score: base + 260 },
+            { name: "Scalper", score: base + 160 },
+            { name: "Breakout", score: base + 80 },
+            { name: displayName(), score: best, me: true },
+            { name: "Moon", score: Math.max(0, base - 110) },
+            { name: "Funding", score: Math.max(0, base - 220) },
+            { name: "Wick", score: Math.max(0, base - 330) },
+            { name: "Trend", score: Math.max(0, base - 440) },
+            { name: "Degen", score: Math.max(0, base - 550) },
+            { name: "Hodler", score: Math.max(0, base - 660) },
+            { name: "Ghost", score: Math.max(0, base - 770) }
+          ];
+          return rows.sort((a, b) => b.score - a.score);
+        }
+
+        function metric(label, value, y, color) {
+          text(label, 270, y - 17, 15, "#7d9eab", "800");
+          text(String(value), 270, y + 14, 29, color, "850");
+        }
+
+        function click(x, y) {
+          if (state === "game") return flap();
+          if (state === "start") {
+            if (inRect(x, y, 270, 910, 220, 34)) state = "nickname";
+            if (inRect(x, y, 270, 700, 342, 72)) resetRun();
+            else if (inRect(x, y, 180, 780, 166, 56)) {
+              shopPage = 0;
+              state = "shop";
+            } else if (inRect(x, y, 360, 780, 166, 56)) state = "leaders";
+            else if (inRect(x, y, 104, 850, 128, 46)) toggleLanguage();
+            else if (inRect(x, y, 270, 850, 150, 46)) muted = !muted;
+            else if (inRect(x, y, 438, 850, 136, 46)) state = "daily";
+          } else if (state === "over") {
+            if (inRect(x, y, 270, 682, 342, 72)) resetRun();
+            else if (inRect(x, y, 270, 770, 342, 64)) {
+              shopPage = 0;
+              state = "shop";
+            }
+            else if (inRect(x, y, 270, 852, 342, 58)) share();
+          } else if (state === "shop") {
+            if (inRect(x, y, 270, 882, 342, 58)) state = "start";
+            if (inRect(x, y, 158, 800, 130, 48)) shopPage = Math.max(0, shopPage - 1);
+            if (inRect(x, y, 382, 800, 130, 48)) shopPage = Math.min(Math.ceil(skins.length / 5) - 1, shopPage + 1);
+            skins.slice(shopPage * 5, shopPage * 5 + 5).forEach((skin, i) => {
+              if (!inRect(x, y, 416, 230 + i * 104, 112, 44)) return;
+              if (progress.unlocked.includes(skin.id)) {
+                progress.selected = skin.id;
+                save();
+                beep("buy");
+              } else if (progress.coins >= skin.price) {
+                progress.coins -= skin.price;
+                progress.unlocked.push(skin.id);
+                progress.selected = skin.id;
+                save();
+                beep("buy");
+              } else {
+                impact = 8;
+                beep("crash");
+              }
+            });
+          } else if (state === "leaders") {
+            if (inRect(x, y, 270, 902, 342, 50)) state = "start";
+          } else if (state === "daily") {
+            if (inRect(x, y, 270, 690, 342, 68)) collectDaily();
+            if (inRect(x, y, 270, 782, 342, 58)) state = "start";
+          } else if (state === "nickname") {
+            if (inRect(x, y, 270, 560, 342, 64)) askNickname();
+            if (inRect(x, y, 270, 642, 342, 58)) {
+              progress.nickname = randomNickname();
+              save();
+            }
+            if (inRect(x, y, 270, 724, 342, 58)) state = "start";
+          }
+        }
+
+        function share() {
+          const message = `Fomo Flight: ${Math.floor(score)} PNL, +${runCoins} VTC. Can you beat my ATH?`;
+          if (navigator.share) navigator.share({ title: "Fomo Flight", text: message }).catch(() => {});
+          else navigator.clipboard && navigator.clipboard.writeText(message);
+          beep("buy");
+        }
+
+        function askNickname() {
+          const entered = window.prompt(L("nicknameTitle"), progress.nickname || displayName());
+          if (entered === null) return;
+          const next = sanitizeNickname(entered);
+          if (next) {
+            progress.nickname = next;
+            save();
+          }
+        }
+
+        function drawPremiumRocketBody(skin) {
+          ctx.save();
+          ctx.shadowColor = skin.trail;
+          ctx.shadowBlur = 24;
+
+          const metal = ctx.createLinearGradient(-62, -34, 72, 32);
+          metal.addColorStop(0, "#07111f");
+          metal.addColorStop(0.28, skin.body);
+          metal.addColorStop(0.54, "#111827");
+          metal.addColorStop(0.78, "#dce8ff");
+          metal.addColorStop(1, "#070b14");
+
+          ctx.fillStyle = skin.trim;
+          if (skin.fin === "delta") {
+            path([[-37, -22], [-69, -34], [-7, -39], [18, -18]]);
+            path([[-37, 22], [-69, 34], [-7, 39], [18, 18]]);
+          } else if (skin.fin === "halo") {
+            ctx.strokeStyle = skin.accent;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(-36, 0, 43, -0.78, 0.78);
+            ctx.stroke();
+            ctx.fillStyle = skin.trim;
+            path([[-36, -20], [-62, -34], [-6, -37], [15, -18]]);
+            path([[-36, 20], [-62, 34], [-6, 37], [15, 18]]);
+          } else if (skin.fin === "blade") {
+            path([[-39, -20], [-77, -18], [-22, -48], [15, -19]]);
+            path([[-39, 20], [-77, 18], [-22, 48], [15, 19]]);
+          } else if (skin.fin === "spear") {
+            path([[-35, -20], [-76, -52], [-28, -34], [14, -18]]);
+            path([[-35, 20], [-76, 52], [-28, 34], [14, 18]]);
+          } else if (skin.fin === "crown") {
+            path([[-38, -21], [-72, -37], [-42, -42], [-12, -36], [16, -19]]);
+            path([[-38, 21], [-72, 37], [-42, 42], [-12, 36], [16, 19]]);
+          } else if (skin.fin === "comet") {
+            path([[-36, -21], [-76, -28], [-49, -5], [15, -18]]);
+            path([[-36, 21], [-76, 28], [-49, 5], [15, 18]]);
+          } else if (skin.fin === "frog") {
+            path([[-35, -21], [-66, -43], [-42, -18], [-8, -39], [15, -18]]);
+            path([[-35, 21], [-66, 43], [-42, 18], [-8, 39], [15, 18]]);
+          } else if (skin.fin === "hex") {
+            path([[-36, -22], [-66, -34], [-39, -48], [-7, -36], [15, -18]]);
+            path([[-36, 22], [-66, 34], [-39, 48], [-7, 36], [15, 18]]);
+          } else if (skin.fin === "prism") {
+            path([[-35, -20], [-58, -48], [-19, -42], [19, -19]]);
+            path([[-35, 20], [-58, 48], [-19, 42], [19, 19]]);
+          } else {
+            path([[-34, -24], [-63, -47], [-12, -42], [15, -20]]);
+            path([[-38, 24], [-63, 46], [-9, 40], [14, 19]]);
+          }
+          ctx.strokeStyle = "#e9f7ff";
+          ctx.globalAlpha = 0.38;
+          ctx.lineWidth = 1.5;
+          line(-55, -43, -12, -37);
+          line(-55, 43, -10, 36);
+          ctx.globalAlpha = 1;
+
+          ctx.fillStyle = metal;
+          ctx.beginPath();
+          ctx.moveTo(-54, -20);
+          ctx.bezierCurveTo(-28, -40, 32, -43, 72, -12);
+          ctx.bezierCurveTo(82, -4, 82, 4, 72, 12);
+          ctx.bezierCurveTo(32, 43, -28, 40, -54, 20);
+          ctx.bezierCurveTo(-68, 9, -68, -9, -54, -20);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "rgba(239,252,255,.72)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.strokeStyle = skin.accent;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(-48, -19);
+          ctx.bezierCurveTo(-25, -29, 23, -32, 56, -11);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-46, 20);
+          ctx.bezierCurveTo(-24, 30, 15, 31, 45, 15);
+          ctx.stroke();
+
+          ctx.fillStyle = "#071019";
+          roundRect(28, -19, 34, 38, 15, "rgba(4,10,18,.92)");
+          ctx.fillStyle = skin.cockpit;
+          roundRect(45, -8, 7, 16, 4, skin.cockpit);
+
+          ctx.fillStyle = "#06101c";
+          circle(-19, 0, 25);
+          ctx.strokeStyle = "#111827";
+          ctx.lineWidth = 8;
+          ctx.beginPath();
+          ctx.arc(-19, 0, 27, 0, Math.PI * 2);
+          ctx.stroke();
+          const ring = ctx.createLinearGradient(-47, -27, 7, 27);
+          ring.addColorStop(0, "#20f2ff");
+          ring.addColorStop(0.55, "#2477ff");
+          ring.addColorStop(1, "#8b5cff");
+          ctx.strokeStyle = ring;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(-19, 0, 25, 0, Math.PI * 2);
+          ctx.stroke();
+
+          if (skin.market === "VT") {
+            ctx.fillStyle = skin.accent;
+            roundRect(-31, 6, 6, 12, 3, skin.accent);
+            roundRect(-20, -2, 7, 20, 3, skin.accent);
+            roundRect(-8, -14, 7, 32, 3, skin.accent);
+          } else {
+            ctx.font = skin.market.length > 3 ? "900 13px Inter, system-ui, sans-serif" : "900 15px Inter, system-ui, sans-serif";
+            ctx.fillStyle = skin.accent;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(skin.market, -19, 1);
+          }
+
+          ctx.strokeStyle = "rgba(125,92,255,.9)";
+          ctx.lineWidth = 2;
+          line(11, 27, 21, 18);
+          line(21, 18, 29, 22);
+          line(29, 22, 39, 10);
+
+          ctx.fillStyle = "#07101b";
+          roundRect(-72, -16, 20, 32, 7, "#07101b");
+          ctx.strokeStyle = skin.trail;
+          ctx.lineWidth = 2;
+          roundedPath(-72, -16, 20, 32, 7);
+          ctx.stroke();
+
+          ctx.restore();
+        }
+
+        function brandHeader(x, y) {
+          drawVTLogo(x - 86, y, 28);
+          text("VT VIBES", x + 12, y - 8, 24, "#effcff", "900");
+          text(L("flight"), x + 48, y + 18, 11, "#7d9eab", "780");
+          ctx.strokeStyle = "rgba(0,229,255,.62)";
+          ctx.lineWidth = 1.5;
+          line(72, y + 45, 185, y + 45);
+          ctx.strokeStyle = "rgba(125,92,255,.62)";
+          line(355, y + 45, 468, y + 45);
+          circle(202, y + 45, 4, "#21dfff");
+          circle(338, y + 45, 4, "#8b5cff");
+        }
+
+        function drawHeroRocket(x, y) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.scale(2.38, 2.38);
+          drawPremiumRocketBody(selectedSkin());
+          ctx.restore();
+        }
+
+        function drawStartStatChip(x, y, label, value, color, withCoin) {
+          ctx.save();
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 10;
+          roundRect(x - 76, y - 22, 152, 44, 8, "rgba(4,12,25,.72)");
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = `${color}99`;
+          ctx.lineWidth = 1.5;
+          roundedPath(x - 76, y - 22, 152, 44, 8);
+          ctx.stroke();
+          if (withCoin) drawTinyCoin(x - 50, y + 2, "#ffd75e", 11);
+          const textX = withCoin ? x + 13 : x;
+          text(label, textX, y - 8, fitTextSize(label, 12, withCoin ? 92 : 120), "#7d9eab", "850");
+          text(String(value), textX, y + 12, fitTextSize(String(value), 18, withCoin ? 92 : 120), color, "950");
+          ctx.restore();
+        }
+
+        function featureStrip(x, y) {
+          panel(x, y, 430, 78, "#2defff");
+          const features = [
+            [L("best"), String(progress.best)],
+            [L("skin"), selectedSkin().name.replace("VT ", "")],
+            [L("coins"), String(progress.coins)],
+            [L("daily"), progress.lastDaily === today() ? L("received") : "+50"]
+          ];
+          const cellW = 100;
+          const startX = x - 150;
+          features.forEach((item, i) => {
+            const cx = startX + i * cellW;
+            if (i > 0) {
+              ctx.strokeStyle = "rgba(128,170,200,.24)";
+              line(cx - cellW / 2, y - 24, cx - cellW / 2, y + 24);
+            }
+            const topColor = i % 2 ? "#9c72ff" : "#20e8ff";
+            text(item[0], cx, y - 13, fitTextSize(item[0], 12, 76), topColor, "950");
+            text(item[1], cx, y + 15, fitTextSize(item[1], 12, 76), "#b9d6df", "850");
+          });
+        }
+
+        function drawSkinBadge(x, y, skin, selected) {
+          ctx.save();
+          ctx.shadowColor = skin.accent;
+          ctx.shadowBlur = selected ? 24 : 10;
+          roundRect(x - 44, y - 34, 88, 68, 12, "rgba(3,8,18,.94)");
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = skin.accent;
+          ctx.lineWidth = selected ? 2.5 : 1.5;
+          roundedPath(x - 44, y - 34, 88, 68, 12);
+          ctx.stroke();
+          drawRocket(x, y, 0.48, 0, skin);
+          ctx.restore();
+        }
+
+        function drawCharmTag(x, y, scale) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(-0.14);
+          ctx.scale(scale, scale);
+          ctx.shadowColor = "#00e5ff";
+          ctx.shadowBlur = 18;
+          roundRect(-31, -28, 62, 56, 8, "rgba(5,16,30,.96)");
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "#19e8ff";
+          ctx.lineWidth = 2;
+          roundedPath(-31, -28, 62, 56, 8);
+          ctx.stroke();
+          text("VT", 0, 4, 20, "#45f4ff", "900");
+          ctx.strokeStyle = "#7d5cff";
+          ctx.lineWidth = 2;
+          for (let i = 0; i < 4; i += 1) line(-39, -18 + i * 11, -29, -18 + i * 11);
+          ctx.restore();
+        }
+
+        function drawVTLogo(x, y, r) {
+          ctx.save();
+          ctx.translate(x, y);
+          const grad = ctx.createLinearGradient(-r, -r, r, r);
+          grad.addColorStop(0, "#20f2ff");
+          grad.addColorStop(0.55, "#2477ff");
+          grad.addColorStop(1, "#8b5cff");
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = Math.max(2, r * 0.1);
+          ctx.beginPath();
+          ctx.arc(0, 0, r, -0.18, Math.PI * 1.72);
+          ctx.stroke();
+          ctx.font = `900 ${Math.floor(r * 0.72)}px Inter, system-ui, sans-serif`;
+          ctx.fillStyle = "#30fff1";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("VT", 0, 1);
+          ctx.restore();
+        }
+
+        function drawMarketCandles(x, y, scale) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.scale(scale, scale);
+          const data = [32, 48, 42, 64, 55, 82, 76, 102];
+          data.forEach((h, i) => {
+            const cx = i * 24;
+            const up = i !== 2 && i !== 5;
+            ctx.strokeStyle = up ? "rgba(0,229,255,.26)" : "rgba(125,92,255,.3)";
+            ctx.lineWidth = 3;
+            line(cx, 88 - h - 18, cx, 104 - h + 42);
+            roundRect(cx - 8, 88 - h, 16, h, 3, up ? "rgba(0,229,255,.2)" : "rgba(125,92,255,.24)");
+          });
+          ctx.restore();
+        }
+
+        function drawCodeRain() {
+          ctx.save();
+          ctx.font = "700 11px ui-monospace, Consolas, monospace";
+          ctx.fillStyle = "rgba(91, 240, 255, .14)";
+          ["if (trend) {", "risk.manage();", "enter();", "} else {", "wait();", "// observe"].forEach((lineText, i) => {
+            ctx.fillText(lineText, 30, 142 + i * 18);
+          });
+          ctx.restore();
+        }
+
+        function pointerPos(e) {
+          const r = canvas.getBoundingClientRect();
+          return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+        }
+
+        canvas.addEventListener("pointerdown", (e) => {
+          const p = pointerPos(e);
+          click(p.x, p.y);
+        });
+        window.addEventListener("keydown", (e) => {
+          if (e.code === "Space") flap();
+        });
+
+        function frame(now) {
+          const dt = Math.min(0.033, (now - last) / 1000);
+          last = now;
+          update(dt);
+          ctx.save();
+          if (impact > 0) {
+            impact -= 1;
+            ctx.translate((Math.random() - 0.5) * impact, (Math.random() - 0.5) * impact);
+          }
+          if (state === "start") drawStart();
+          if (state === "game") drawGame();
+          if (state === "over") drawOver();
+          if (state === "shop") drawShop();
+          if (state === "leaders") drawLeaders();
+          if (state === "daily") drawDaily();
+          if (state === "nickname") drawNickname();
+          ctx.restore();
+          requestAnimationFrame(frame);
+        }
+
+        function btn(x, y, w, h, label, color) {
+          ctx.save();
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 20;
+          const fill = ctx.createLinearGradient(x - w / 2, y - h / 2, x + w / 2, y + h / 2);
+          fill.addColorStop(0, "rgba(7,18,34,.98)");
+          fill.addColorStop(0.5, "rgba(5,10,24,.96)");
+          fill.addColorStop(1, "rgba(18,12,42,.96)");
+          roundRect(x - w / 2, y - h / 2, w, h, 8, fill);
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          roundedPath(x - w / 2, y - h / 2, w, h, 8);
+          ctx.stroke();
+          ctx.globalAlpha = 0.32;
+          ctx.fillStyle = color;
+          ctx.fillRect(x - w / 2 + 12, y - h / 2 + 8, w - 24, 2);
+          ctx.globalAlpha = 1;
+          text(label, x, y + 2, fitTextSize(label, h < 56 ? 17 : 22, w - 24), "#effcff", "900");
+          ctx.restore();
+        }
+
+        function fitTextSize(label, size, maxWidth) {
+          ctx.font = `900 ${size}px Inter, system-ui, sans-serif`;
+          let next = size;
+          while (next > 10 && ctx.measureText(String(label)).width > maxWidth) {
+            next -= 1;
+            ctx.font = `900 ${next}px Inter, system-ui, sans-serif`;
+          }
+          return next;
+        }
+
+        function panel(x, y, w, h, stroke) {
+          const fill = ctx.createLinearGradient(x - w / 2, y - h / 2, x + w / 2, y + h / 2);
+          fill.addColorStop(0, "rgba(7,18,34,.92)");
+          fill.addColorStop(0.52, "rgba(4,9,20,.9)");
+          fill.addColorStop(1, "rgba(18,12,42,.82)");
+          roundRect(x - w / 2, y - h / 2, w, h, 8, fill);
+          ctx.strokeStyle = stroke;
+          ctx.globalAlpha = 0.7;
+          ctx.lineWidth = 2;
+          roundedPath(x - w / 2, y - h / 2, w, h, 8);
+          ctx.stroke();
+          ctx.globalAlpha = 0.2;
+          ctx.strokeStyle = "#ffffff";
+          roundedPath(x - w / 2 + 4, y - h / 2 + 4, w - 8, h - 8, 6);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+
+        function pill(x, y, label, value, color) {
+          roundRect(x - 60, y - 22, 120, 44, 8, "rgba(5,13,26,.88)");
+          ctx.strokeStyle = "rgba(46,223,255,.36)";
+          ctx.lineWidth = 1;
+          roundedPath(x - 60, y - 22, 120, 44, 8);
+          ctx.stroke();
+          leftText(label, x - 45, y - 8, 11, "#729cab", "800");
+          leftText(value, x - 45, y + 13, 18, color, "900");
+        }
+
+        function text(s, x, y, size, color, weight) {
+          ctx.font = `${weight || 800} ${size}px Inter, system-ui, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          if (size >= 32) {
+            ctx.save();
+            ctx.shadowColor = "rgba(0, 229, 255, .55)";
+            ctx.shadowBlur = 14;
+            ctx.lineWidth = Math.max(3, size * 0.08);
+            ctx.strokeStyle = "rgba(3, 8, 18, .92)";
+            ctx.strokeText(s, x, y);
+            ctx.restore();
+          }
+          ctx.fillStyle = color;
+          ctx.fillText(s, x, y);
+        }
+
+        function leftText(s, x, y, size, color, weight) {
+          ctx.font = `${weight || 800} ${size}px Inter, system-ui, sans-serif`;
+          ctx.fillStyle = color;
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          ctx.fillText(s, x, y);
+        }
+
+        function roundRect(x, y, w, h, r, fill) {
+          roundedPath(x, y, w, h, r);
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
+
+        function roundedPath(x, y, w, h, r) {
+          const rr = Math.min(r, w / 2, h / 2);
+          ctx.beginPath();
+          ctx.moveTo(x + rr, y);
+          ctx.arcTo(x + w, y, x + w, y + h, rr);
+          ctx.arcTo(x + w, y + h, x, y + h, rr);
+          ctx.arcTo(x, y + h, x, y, rr);
+          ctx.arcTo(x, y, x + w, y, rr);
+          ctx.closePath();
+        }
+
+        function circle(x, y, r, fill) {
+          if (fill) ctx.fillStyle = fill;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        function line(x1, y1, x2, y2) {
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+
+        function path(points) {
+          ctx.beginPath();
+          ctx.moveTo(points[0][0], points[0][1]);
+          points.slice(1).forEach((p) => ctx.lineTo(p[0], p[1]));
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        function inRect(px, py, x, y, w, h) {
+          return px >= x - w / 2 && px <= x + w / 2 && py >= y - h / 2 && py <= y + h / 2;
+        }
+
+        stars = Array.from({ length: 64 }, (_, i) => ({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          r: 0.7 + Math.random() * 1.8,
+          s: 18 + (i % 5) * 12,
+          c: ["#65f6ff", "#7d74ff", "#ffd75e", "#52ff9b"][i % 4]
+        }));
+        requestAnimationFrame(frame);
+      })();
+    </script>
+  </body>
+</html>
+
