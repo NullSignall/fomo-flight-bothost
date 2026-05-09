@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-story-share-1";
+        const BUILD = "2026-05-09-story-share-2";
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -1180,13 +1180,13 @@
         async function share() {
           const data = lastRun.score ? lastRun : { score: Math.floor(score), vtc: runCoins, ath: progress.best, newBest: false, line: gameOverLine() };
           const message = data.newBest
-            ? `Fomo Flight: NEW ATH ${data.ath} PNL, +${data.vtc} VTC. Can you beat it?`
-            : `Fomo Flight: ${data.score} PNL, +${data.vtc} VTC. Can you beat my ATH?`;
+            ? `Fomo Flight: NEW ATH ${data.ath} PNL, +${data.vtc} VTC. Can you beat it?\n@FomoFlightBot`
+            : `Fomo Flight: ${data.score} PNL, +${data.vtc} VTC. Can you beat my ATH?\n@FomoFlightBot`;
           const appLink = miniAppLink;
           const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appLink)}&text=${encodeURIComponent(message)}`;
           const card = createShareCard(data);
           try {
-            const blob = await new Promise((resolve) => card.toBlob(resolve, "image/png", 0.96));
+            const blob = await new Promise((resolve) => card.toBlob(resolve, "image/jpeg", 0.9));
             if (tg && tg.shareToStory && hasTelegramAuth()) {
               const media = await uploadShareCard(card);
               tg.shareToStory(media.mediaUrl, {
@@ -1199,7 +1199,7 @@
               beep("buy");
               return;
             }
-            const file = new File([blob], data.newBest ? "fomo-flight-new-ath.png" : "fomo-flight-run.png", { type: "image/png" });
+            const file = new File([blob], data.newBest ? "fomo-flight-new-ath.jpg" : "fomo-flight-run.jpg", { type: "image/jpeg" });
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
               await navigator.share({ title: "Fomo Flight", text: message, files: [file] });
             } else if (navigator.share) {
@@ -1217,7 +1217,7 @@
         }
 
         async function uploadShareCard(card) {
-          const image = card.toDataURL("image/png");
+          const image = card.toDataURL("image/jpeg", 0.9);
           return api("/api/share-card", {
             method: "POST",
             body: { image }
@@ -1258,8 +1258,14 @@
           if (!victory) drawCardImpact(c, 720, 760);
 
           drawResultPanel(c, run, victory);
-          cardText(c, victory ? "\u041F\u041E\u041F\u0420\u041E\u0411\u0423\u0419 \u041E\u0411\u041E\u0413\u041D\u0410\u0422\u042C" : "\u041E\u0422\u042B\u0413\u0420\u0410\u0422\u042C\u0421\u042F \u0412 FOMO FLIGHT", 540, 1718, 44, "#effcff", 950, true);
-          cardText(c, "@FomoFlightBot", 540, 1810, 29, "#7de9ff", 850);
+          cardText(c, victory ? "\u041F\u041E\u041F\u0420\u041E\u0411\u0423\u0419 \u041E\u0411\u041E\u0413\u041D\u0410\u0422\u042C" : "\u041E\u0422\u042B\u0413\u0420\u0410\u0422\u042C\u0421\u042F \u0412 FOMO FLIGHT", 540, 1690, 44, "#effcff", 950, true);
+          cardRound(c, 290, 1754, 500, 72, 18, "rgba(5,13,28,.92)");
+          c.strokeStyle = "rgba(45,239,255,.72)";
+          c.lineWidth = 3;
+          cardRoundedPath(c, 290, 1754, 500, 72, 18);
+          c.stroke();
+          cardText(c, "@FomoFlightBot", 540, 1792, 38, "#7de9ff", 950, true);
+          cardText(c, "tap to play in Telegram", 540, 1850, 24, "#ffd75e", 850);
           return card;
         }
 
