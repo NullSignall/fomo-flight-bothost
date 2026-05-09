@@ -12,7 +12,7 @@ const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.js
 const publicUrl = String(process.env.PUBLIC_URL || "https://bot-1778289451-5878-nullsignal.bothost.tech").replace(/\/+$/, "");
 const miniAppLink = process.env.MINI_APP_LINK || "https://t.me/FomoFlightBot?startapp=share";
 const shareDir = process.env.SHARE_DIR || path.join(__dirname, "data", "share");
-const buildVersion = "2026-05-09-story-share-3";
+const buildVersion = "2026-05-09-powerups-1";
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 900],
@@ -285,7 +285,7 @@ function validateRun(run, user, store) {
   if (run.score < 0 || run.vtc < 0 || run.durationMs < 1000) return { ok: false, error: "bad_run" };
   const seconds = run.durationMs / 1000;
   if (run.score / seconds > 45) return { ok: false, error: "score_rate" };
-  if (run.vtc / seconds > 4) return { ok: false, error: "vtc_rate" };
+  if (run.vtc / seconds > 18) return { ok: false, error: "vtc_rate" };
   if (!user.unlockedSkins.includes(run.selectedSkin)) return { ok: false, error: "skin_not_unlocked" };
   return { ok: true };
 }

@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-story-share-3";
+        const BUILD = "2026-05-09-powerups-1";
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -263,7 +263,7 @@
         let progress = load();
         let state = "start";
         let shopPage = 0;
-        let player, obstacles, coins, particles, stars, score, runCoins, speed, spawnTimer, impact;
+        let player, obstacles, coins, powerups, particles, stars, score, runCoins, speed, spawnTimer, impact;
         let last = performance.now();
         let runStartedAt = 0;
         let muted = false;
@@ -272,11 +272,14 @@
         let syncBusy = false;
         let lastRun = { score: 0, vtc: 0, ath: progress.best, newBest: false, line: "" };
         let miniAppLink = "https://t.me/FomoFlightBot?startapp=share";
+        let effects = {};
+        let nextPowerupScore = 0;
 
         function resetRun() {
           player = { x: 138, y: 438, vy: -360, r: 24, angle: 0 };
           obstacles = [];
           coins = [];
+          powerups = [];
           particles = [];
           stars = Array.from({ length: 64 }, (_, i) => ({
             x: Math.random() * W,
@@ -291,6 +294,8 @@
           spawnTimer = 760;
           impact = 0;
           runStartedAt = performance.now();
+          effects = { magnet: 0, shield: 0, slowmo: 0, double: 0 };
+          nextPowerupScore = 230 + Math.random() * 170;
           state = "game";
         }
 
@@ -688,14 +693,41 @@
             const t = count === 1 ? 0.5 : i / (count - 1);
             coins.push({ x: W + 210 + i * 46, y: center - Math.sin(t * Math.PI) * Math.min(46, gap * 0.18), r: 14, spin: 0 });
           }
+          if (score >= nextPowerupScore) {
+            spawnPowerup(W + 218 + Math.random() * 80, center + (Math.random() - 0.5) * Math.min(92, gap * 0.36));
+            nextPowerupScore = score + 280 + Math.random() * 330;
+          }
+        }
+
+        function spawnPowerup(x, y) {
+          const table = [
+            ["super", 0.28],
+            ["magnet", 0.24],
+            ["shield", 0.2],
+            ["slowmo", 0.14],
+            ["double", 0.14]
+          ];
+          let roll = Math.random();
+          let type = "super";
+          for (const item of table) {
+            roll -= item[1];
+            if (roll <= 0) {
+              type = item[0];
+              break;
+            }
+          }
+          powerups.push({ type, x, y: Math.max(116, Math.min(H - 126, y)), r: type === "super" ? 24 : 21, spin: 0, pulse: Math.random() * Math.PI * 2 });
         }
 
         function update(dt) {
           if (state !== "game") return;
           const difficulty = difficultyCurve();
+          tickEffects(dt);
+          const slowFactor = effects.slowmo > 0 ? 0.62 : 1;
           speed += (difficulty.speed - speed) * Math.min(1, dt * 1.8);
-          score += speed * dt / 15.5;
-          spawnTimer -= dt * 1000;
+          const worldSpeed = speed * slowFactor;
+          score += worldSpeed * dt / 15.5;
+          spawnTimer -= dt * 1000 * (effects.slowmo > 0 ? 0.74 : 1);
           if (spawnTimer <= 0) {
             spawnPair();
             spawnTimer = difficulty.spawn;
@@ -711,11 +743,17 @@
             star.x -= star.s * dt;
             if (star.x < -8) { star.x = W + 8; star.y = Math.random() * H; }
           });
-          obstacles.forEach((ob) => ob.x -= speed * dt);
-          coins.forEach((coin) => { coin.x -= speed * dt; coin.spin += dt * 9; });
+          obstacles.forEach((ob) => ob.x -= worldSpeed * dt);
+          coins.forEach((coin) => {
+            coin.x -= worldSpeed * dt;
+            coin.spin += dt * 9;
+            if (effects.magnet > 0) pullCoin(coin, dt);
+          });
+          powerups.forEach((p) => { p.x -= worldSpeed * dt; p.spin += dt * 7; p.pulse += dt * 5; });
           particles.forEach((p) => { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; });
           obstacles = obstacles.filter((ob) => ob.x > -120);
           coins = coins.filter((coin) => coin.x > -60);
+          powerups = powerups.filter((p) => p.x > -70 && !p.hit);
           particles = particles.filter((p) => p.life > 0);
 
           for (const coin of coins) {
@@ -725,16 +763,105 @@
             }
             if (Math.hypot(player.x - coin.x, player.y - coin.y) < player.r + coin.r) {
               coin.hit = true;
-              runCoins += 1;
-              beep("coin");
-              for (let i = 0; i < 7; i += 1) {
-                particles.push({ x: coin.x, y: coin.y, vx: -40 + Math.random() * 80, vy: -70 + Math.random() * 140, life: 0.25, c: "#ffd75e", r: 2 + Math.random() * 4 });
-              }
+              collectVtc(coin.x, coin.y, coin.value || 1);
+            }
+          }
+          for (const p of powerups) {
+            if (Math.hypot(player.x - p.x, player.y - p.y) < player.r + p.r) {
+              p.hit = true;
+              activatePowerup(p);
             }
           }
           coins = coins.filter((coin) => !coin.hit);
+          powerups = powerups.filter((p) => !p.hit);
 
-          if (player.y < 32 || player.y > H - 32 || obstacles.some(hitObstacle)) crash();
+          const hit = obstacles.find(hitObstacle);
+          if (player.y < 32 || player.y > H - 32) {
+            if (effects.shield > 0) breakShield();
+            else crash();
+          } else if (hit) {
+            if (effects.shield > 0) breakShield(hit);
+            else crash();
+          }
+        }
+
+        function tickEffects(dt) {
+          Object.keys(effects).forEach((key) => {
+            effects[key] = Math.max(0, effects[key] - dt);
+          });
+        }
+
+        function pullCoin(coin, dt) {
+          const dx = player.x - coin.x;
+          const dy = player.y - coin.y;
+          const d = Math.max(1, Math.hypot(dx, dy));
+          if (d > 210) return;
+          const force = (1 - d / 230) * 820;
+          coin.x += dx / d * force * dt;
+          coin.y += dy / d * force * dt;
+        }
+
+        function collectVtc(x, y, value) {
+          const bonus = effects.double > 0 ? 2 : 1;
+          const earned = value * bonus;
+          runCoins += earned;
+          beep(value >= 10 ? "buy" : "coin");
+          for (let i = 0; i < (value >= 10 ? 18 : 7); i += 1) {
+            particles.push({ x, y, vx: -80 + Math.random() * 160, vy: -110 + Math.random() * 220, life: 0.26 + Math.random() * 0.16, c: value >= 10 ? "#ffd75e" : "#ffd75e", r: 2 + Math.random() * (value >= 10 ? 7 : 4) });
+          }
+        }
+
+        function activatePowerup(p) {
+          if (p.type === "super") {
+            collectVtc(p.x, p.y, 35);
+            return;
+          }
+          const durations = { magnet: 7.5, shield: 6, slowmo: 5, double: 8 };
+          effects[p.type] = Math.max(effects[p.type] || 0, durations[p.type] || 5);
+          beep("buy");
+          for (let i = 0; i < 18; i += 1) {
+            particles.push({ x: p.x, y: p.y, vx: -120 + Math.random() * 240, vy: -120 + Math.random() * 240, life: 0.34, c: powerupColor(p.type), r: 3 + Math.random() * 6 });
+          }
+        }
+
+        function breakShield(hit) {
+          effects.shield = 0;
+          impact = 10;
+          player.y = Math.max(48, Math.min(H - 48, player.y));
+          player.vy = -260;
+          if (hit) obstacles.forEach((ob) => { if (Math.abs(ob.x - hit.x) < 90) ob.x = -999; });
+          beep("crash");
+          for (let i = 0; i < 26; i += 1) {
+            particles.push({ x: player.x, y: player.y, vx: -180 + Math.random() * 360, vy: -180 + Math.random() * 360, life: 0.42, c: "#b9f8ff", r: 3 + Math.random() * 7 });
+          }
+        }
+
+        function powerupColor(type) {
+          return {
+            super: "#ffd75e",
+            magnet: "#2defff",
+            shield: "#b9f8ff",
+            slowmo: "#8b7dff",
+            double: "#30ff9f"
+          }[type] || "#ffd75e";
+        }
+
+        function powerupLabel(type) {
+          const ru = {
+            super: "VTC",
+            magnet: "МАГ",
+            shield: "ЩИТ",
+            slowmo: "СЛОУ",
+            double: "x2"
+          };
+          const en = {
+            super: "VTC",
+            magnet: "MAG",
+            shield: "SHD",
+            slowmo: "SLOW",
+            double: "x2"
+          };
+          return (progress.lang === "ru" ? ru : en)[type] || "VTC";
         }
 
         function hitObstacle(ob) {
@@ -824,11 +951,13 @@
           drawBg();
           obstacles.forEach(drawCandle);
           coins.forEach(drawCoin);
+          powerups.forEach(drawPowerup);
           particles.forEach((p) => {
             ctx.globalAlpha = Math.max(0, p.life / 0.35);
             circle(p.x, p.y, p.r, p.c);
             ctx.globalAlpha = 1;
           });
+          drawRocketAura();
           drawRocket(player.x, player.y, 0.92, player.angle, selectedSkin());
           ctx.globalAlpha = 0.92;
           roundRect(22, 20, 496, 86, 14, "rgba(3,8,18,.78)");
@@ -837,7 +966,7 @@
           pill(127, 62, "PNL", String(Math.floor(score)), "#30ff9f");
           pill(292, 62, L("coins"), String(runCoins), "#ffd75e");
           pill(451, 62, "ATH", String(Math.max(progress.best, Math.floor(score))), "#7de9ff");
-          text(L("flightLive"), 270, 126, 13, "#5f7d8b", "850");
+          drawPowerupHud();
         }
 
         function drawCandle(ob) {
@@ -870,6 +999,138 @@
           ctx.scale(Math.max(0.32, Math.abs(Math.cos(c.spin))), 1);
           drawTinyCoin(0, 0, "#ffd75e", c.r);
           ctx.restore();
+        }
+
+        function drawPowerup(p) {
+          const color = powerupColor(p.type);
+          const pulse = 1 + Math.sin(p.pulse) * 0.06;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.spin * 0.08);
+          ctx.scale(pulse, pulse);
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 24;
+          if (p.type === "super") {
+            drawTinyCoin(0, 0, "#ffd75e", 24);
+            ctx.shadowBlur = 16;
+            text("+35", 0, 40, 11, "#ffd75e", "950");
+            ctx.restore();
+            return;
+          }
+          ctx.fillStyle = "rgba(3, 9, 22, .94)";
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          for (let i = 0; i < 6; i += 1) {
+            const a = Math.PI / 6 + i * Math.PI / 3;
+            const x = Math.cos(a) * 27;
+            const y = Math.sin(a) * 27;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineCap = "round";
+          if (p.type === "magnet") {
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(0, -3, 13, Math.PI * 0.18, Math.PI * 0.82, true);
+            ctx.stroke();
+            line(-13, -2, -13, 11);
+            line(13, -2, 13, 11);
+          } else if (p.type === "shield") {
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, -17);
+            ctx.lineTo(15, -9);
+            ctx.lineTo(12, 8);
+            ctx.quadraticCurveTo(0, 19, -12, 8);
+            ctx.lineTo(-15, -9);
+            ctx.closePath();
+            ctx.stroke();
+          } else if (p.type === "slowmo") {
+            ctx.lineWidth = 4;
+            circle(0, 0, 13, "rgba(139,125,255,.14)");
+            ctx.beginPath();
+            ctx.arc(0, 0, 13, -Math.PI / 2, Math.PI * 0.55);
+            ctx.stroke();
+            line(0, 0, 0, -9);
+            line(0, 0, 9, 4);
+          } else if (p.type === "double") {
+            text("x2", 0, 1, 22, color, "950");
+          }
+          ctx.restore();
+          text(powerupLabel(p.type), p.x, p.y + 42, 11, color, "950");
+        }
+
+        function drawRocketAura() {
+          const t = performance.now() / 1000;
+          ctx.save();
+          if (effects.shield > 0) {
+            ctx.globalAlpha = 0.28 + Math.sin(t * 10) * 0.06;
+            ctx.strokeStyle = "#b9f8ff";
+            ctx.lineWidth = 4;
+            ctx.shadowColor = "#b9f8ff";
+            ctx.shadowBlur = 24;
+            ctx.beginPath();
+            ctx.ellipse(player.x + 8, player.y, 70, 41, player.angle, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          if (effects.magnet > 0) {
+            ctx.globalAlpha = 0.18 + Math.sin(t * 7) * 0.05;
+            ctx.strokeStyle = "#2defff";
+            ctx.setLineDash([8, 10]);
+            ctx.lineWidth = 2;
+            ctx.shadowColor = "#2defff";
+            ctx.shadowBlur = 18;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, 118 + Math.sin(t * 4) * 5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          if (effects.slowmo > 0) {
+            ctx.globalAlpha = 0.2;
+            ctx.fillStyle = "#8b7dff";
+            for (let i = 0; i < 3; i += 1) {
+              roundRect(player.x - 92 - i * 28, player.y - 23 + i * 17, 58, 5, 3, "#8b7dff");
+            }
+          }
+          if (effects.double > 0) {
+            ctx.globalAlpha = 0.9;
+            ctx.shadowColor = "#30ff9f";
+            ctx.shadowBlur = 16;
+            roundRect(player.x + 45, player.y - 54, 45, 25, 8, "rgba(3,20,18,.88)");
+            text("x2", player.x + 67, player.y - 41, 15, "#30ff9f", "950");
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        function drawPowerupHud() {
+          const active = Object.entries(effects).filter((entry) => entry[1] > 0 && entry[0] !== "super");
+          if (!active.length) {
+            text(L("flightLive"), 270, 126, 13, "#5f7d8b", "850");
+            return;
+          }
+          const w = 78;
+          const start = 270 - ((active.length * w) + ((active.length - 1) * 8)) / 2 + w / 2;
+          active.forEach(([type, time], i) => {
+            const x = start + i * (w + 8);
+            const color = powerupColor(type);
+            ctx.save();
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 10;
+            roundRect(x - w / 2, 113, w, 27, 9, "rgba(3,9,20,.86)");
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            roundedPath(x - w / 2, 113, w, 27, 9);
+            ctx.stroke();
+            ctx.restore();
+            text(`${powerupLabel(type)} ${Math.ceil(time)}`, x, 127, 11, color, "950");
+          });
         }
 
         function drawTinyCoin(x, y, color, r = 15) {
