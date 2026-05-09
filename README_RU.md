@@ -14,6 +14,7 @@
 - Главный файл: `server.js`
 - Git URL: `https://github.com/NullSignall/fomo-flight-bothost.git`
 - Ветка: `main`
+- Использовать собственный Dockerfile: включить
 
 ## Переменные окружения
 
