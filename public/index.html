@@ -110,7 +110,7 @@
       <div class="nick-panel">
         <h2 id="nickTitle" class="nick-title">CALLSIGN</h2>
         <p id="nickHint" class="nick-hint">Choose how you appear in the leaderboard</p>
-        <input id="nickInput" class="nick-input" maxlength="14" autocomplete="off" inputmode="text" />
+        <input id="nickInput" class="nick-input" maxlength="24" autocomplete="off" inputmode="text" />
         <div id="nickError" class="nick-error"></div>
         <div class="nick-actions">
           <button id="nickCancel" type="button">BACK</button>
@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-icons-1";
+        const BUILD = "2026-05-09-maps-settings-1";
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -153,6 +153,14 @@
           { id: "ltc", name: "LTC Silver", market: "LTC", price: 36500, body: "#c8d2df", trim: "#52606e", cockpit: "#f4f8ff", trail: "#d5e2f0", accent: "#ffffff", fin: "blade" },
           { id: "eth", name: "ETH Prism", market: "ETH", price: 49000, body: "#8aa8ff", trim: "#4545b8", cockpit: "#edf1ff", trail: "#7b8cff", accent: "#b9c8ff", fin: "prism" },
           { id: "btc", name: "BTC Crown", market: "BTC", price: 64000, body: "#ffb629", trim: "#7a4c00", cockpit: "#fff3bf", trail: "#ffd35a", accent: "#fff08a", fin: "crown" }
+        ];
+        const maps = [
+          { id: "terminal", name: "VT Terminal", price: 0, accent: "#2defff", mood: "grid" },
+          { id: "bull", name: "Bull Run", price: 7500, accent: "#30ff9f", mood: "bull" },
+          { id: "bear", name: "Bear Trap", price: 11000, accent: "#ff4564", mood: "bear" },
+          { id: "ethprism", name: "ETH Prism", price: 18000, accent: "#8b7dff", mood: "prism" },
+          { id: "liquidation", name: "Liquidation City", price: 28000, accent: "#ff45d7", mood: "city" },
+          { id: "btccitadel", name: "BTC Citadel", price: 45000, accent: "#ffd35a", mood: "citadel" }
         ];
         const copy = {
           en: {
@@ -199,7 +207,18 @@
             nicknameCancel: "BACK",
             nicknameBadShort: "Use 2-14 characters",
             nicknameBadWords: "Choose a cleaner nickname",
-            nicknameTaken: "This nickname is taken"
+            nicknameTaken: "This nickname is taken",
+            maps: "MAPS",
+            settings: "SETTINGS",
+            map: "MAP",
+            promo: "PROMO CODE",
+            promoHint: "Enter a code to claim VTC",
+            promoButton: "CLAIM CODE",
+            promoApplied: "Code applied",
+            promoInvalid: "Invalid code",
+            promoLimit: "Code limit reached",
+            promoNeedTg: "Open in Telegram to claim",
+            language: "LANGUAGE"
           },
           ru: {
             flight: "\u043a\u0440\u0438\u043f\u0442\u043e \u0430\u0440\u043a\u0430\u0434\u0430",
@@ -245,7 +264,18 @@
             nicknameCancel: "\u041D\u0410\u0417\u0410\u0414",
             nicknameBadShort: "\u041D\u0443\u0436\u043D\u043E 2-14 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432",
             nicknameBadWords: "\u0412\u044B\u0431\u0435\u0440\u0438 \u043D\u0438\u043A \u043F\u043E\u0447\u0438\u0449\u0435",
-            nicknameTaken: "\u042D\u0442\u043E\u0442 \u043D\u0438\u043A \u0443\u0436\u0435 \u0437\u0430\u043D\u044F\u0442"
+            nicknameTaken: "\u042D\u0442\u043E\u0442 \u043D\u0438\u043A \u0443\u0436\u0435 \u0437\u0430\u043D\u044F\u0442",
+            maps: "\u041A\u0410\u0420\u0422\u042B",
+            settings: "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418",
+            map: "\u041A\u0410\u0420\u0422\u0410",
+            promo: "\u041F\u0420\u041E\u041C\u041E\u041A\u041E\u0414",
+            promoHint: "\u0412\u0432\u0435\u0434\u0438 \u043A\u043E\u0434, \u0447\u0442\u043E\u0431\u044B \u0437\u0430\u0431\u0440\u0430\u0442\u044C VTC",
+            promoButton: "\u041F\u0420\u0418\u041C\u0415\u041D\u0418\u0422\u042C",
+            promoApplied: "\u041A\u041E\u0414 \u041F\u0420\u0418\u041C\u0415\u041D\u0415\u041D",
+            promoInvalid: "\u041D\u0415\u0412\u0415\u0420\u041D\u042B\u0419 \u041A\u041E\u0414",
+            promoLimit: "\u041B\u0418\u041C\u0418\u0422 \u041A\u041E\u0414\u0410",
+            promoNeedTg: "\u041E\u0442\u043A\u0440\u043E\u0439 \u0432 Telegram",
+            language: "\u042F\u0417\u042B\u041A"
           }
         };
         const load = () => {
@@ -254,15 +284,16 @@
             let raw = localStorage.getItem(key);
             if (!raw && key !== KEY) raw = localStorage.getItem(KEY);
             const saved = JSON.parse(raw);
-            return normalizeProgress({ coins: 0, best: 0, selected: "vt", unlocked: ["vt"], lastDaily: "", streak: 0, lang: defaultLang, userId: "", nickname: "", ...saved });
+            return normalizeProgress({ coins: 0, best: 0, selected: "vt", unlocked: ["vt"], selectedMap: "terminal", unlockedMaps: ["terminal"], lastDaily: "", streak: 0, lang: defaultLang, userId: "", nickname: "", ...saved });
           } catch {
-            return { coins: 0, best: 0, selected: "vt", unlocked: ["vt"], lastDaily: "", streak: 0, lang: defaultLang, userId: localUserId(), nickname: "" };
+            return { coins: 0, best: 0, selected: "vt", unlocked: ["vt"], selectedMap: "terminal", unlockedMaps: ["terminal"], lastDaily: "", streak: 0, lang: defaultLang, userId: localUserId(), nickname: "" };
           }
         };
         const save = () => localStorage.setItem(storageKey(), JSON.stringify(progress));
         let progress = load();
         let state = "start";
         let shopPage = 0;
+        let mapPage = 0;
         let player, obstacles, coins, powerups, particles, stars, score, runCoins, speed, spawnTimer, impact;
         let last = performance.now();
         let runStartedAt = 0;
@@ -274,6 +305,8 @@
         let miniAppLink = "https://t.me/FomoFlightBot?startapp=share";
         let effects = {};
         let nextPowerupScore = 0;
+        let modalMode = "nickname";
+        let promoStatus = "";
 
         function resetRun() {
           player = { x: 138, y: 438, vy: -360, r: 24, angle: 0 };
@@ -337,20 +370,26 @@
 
         function normalizeProgress(value) {
           const ids = skins.map((skin) => skin.id);
+          const mapIds = maps.map((map) => map.id);
           const legacyMap = { gold: "ton", diamond: "xrp", ghost: "trx", bull: "sol" };
           const selectedRaw = legacyMap[value.selected] || value.selected;
           const unlocked = Array.isArray(value.unlocked)
             ? value.unlocked.map((id) => legacyMap[id] || id).filter((id) => ids.includes(id))
             : ["vt"];
+          const unlockedMaps = Array.isArray(value.unlockedMaps) ? value.unlockedMaps.filter((id) => mapIds.includes(id)) : ["terminal"];
           if (!unlocked.includes("vt")) unlocked.unshift("vt");
+          if (!unlockedMaps.includes("terminal")) unlockedMaps.unshift("terminal");
           const rawStreak = Math.max(0, Math.min(7, Number(value.streak) || 0));
           const migratedStreak = rawStreak === 0 && value.lastDaily === today() ? 1 : rawStreak;
+          const selectedMapRaw = mapIds.includes(value.selectedMap) ? value.selectedMap : "terminal";
           return {
             ...value,
             coins: Math.max(0, Number(value.coins) || 0),
             best: Math.max(0, Number(value.best) || 0),
             selected: ids.includes(selectedRaw) ? selectedRaw : "vt",
             unlocked: [...new Set(unlocked)],
+            selectedMap: unlockedMaps.includes(selectedMapRaw) ? selectedMapRaw : "terminal",
+            unlockedMaps: [...new Set(unlockedMaps)],
             streak: migratedStreak,
             lang: value.lang === "en" ? "en" : value.lang === "ru" ? "ru" : defaultLang,
             userId: currentUserId(),
@@ -464,6 +503,8 @@
           progress.best = Math.max(0, Number(profile.bestScore) || 0);
           progress.selected = skins.some((skin) => skin.id === profile.selectedSkin) ? profile.selectedSkin : progress.selected;
           progress.unlocked = Array.isArray(profile.unlockedSkins) && profile.unlockedSkins.length ? profile.unlockedSkins : progress.unlocked;
+          progress.selectedMap = maps.some((map) => map.id === profile.selectedMap) ? profile.selectedMap : progress.selectedMap;
+          progress.unlockedMaps = Array.isArray(profile.unlockedMaps) && profile.unlockedMaps.length ? profile.unlockedMaps : progress.unlockedMaps;
           progress.streak = Math.max(0, Math.min(7, Number(profile.dailyStreak) || 0));
           progress.lastDaily = String(profile.lastDaily || "");
           progress.nickname = sanitizeNickname(profile.displayName || progress.nickname);
@@ -634,6 +675,10 @@
 
         function selectedSkin() {
           return skins.find((skin) => skin.id === progress.selected) || skins[0];
+        }
+
+        function selectedMap() {
+          return maps.find((map) => map.id === progress.selectedMap) || maps[0];
         }
 
         function difficultyCurve() {
@@ -900,9 +945,10 @@
         }
 
         function drawBg() {
+          const map = selectedMap();
           const g = ctx.createLinearGradient(0, 0, 0, H);
           g.addColorStop(0, "#030712");
-          g.addColorStop(0.48, "#061022");
+          g.addColorStop(0.48, map.id === "bear" ? "#160716" : map.id === "bull" ? "#041522" : map.id === "btccitadel" ? "#120d04" : "#061022");
           g.addColorStop(1, "#030711");
           ctx.fillStyle = g;
           ctx.fillRect(0, 0, W, H);
@@ -912,6 +958,7 @@
           scan.addColorStop(1, "rgba(255, 216, 86, .06)");
           ctx.fillStyle = scan;
           ctx.fillRect(0, 0, W, H);
+          drawMapAtmosphere(map);
           ctx.strokeStyle = "rgba(33,79,120,.26)";
           ctx.lineWidth = 1;
           for (let x = 0; x <= W; x += 27) line(x, 0, x, H);
@@ -926,16 +973,43 @@
           ctx.globalAlpha = 1;
           drawCodeRain();
           drawMarketCandles(392, 135, 0.62);
-          ctx.strokeStyle = "rgba(48,255,159,.28)";
+          drawFarCoin();
+        }
+
+        function drawMapAtmosphere(map) {
+          ctx.save();
+          const t = (Number(score) || performance.now() / 60) * 0.01;
+          if (map.id === "bull") {
+            cardGlow(ctx, 450, 760, 360, "rgba(48,255,159,.10)");
+            drawMarketCandles(350, 132, 0.72);
+            ctx.strokeStyle = "rgba(48,255,159,.34)";
+          } else if (map.id === "bear") {
+            cardGlow(ctx, 84, 320, 360, "rgba(255,69,100,.11)");
+            drawEdgeCandles("#ff4564", 0.42);
+            ctx.strokeStyle = "rgba(255,69,100,.32)";
+          } else if (map.id === "liquidation") {
+            cardGlow(ctx, 420, 260, 420, "rgba(255,69,215,.11)");
+            drawCityCandles();
+            ctx.strokeStyle = "rgba(255,69,215,.27)";
+          } else if (map.id === "ethprism") {
+            cardGlow(ctx, 430, 310, 420, "rgba(139,125,255,.12)");
+            drawPrismNetwork();
+            ctx.strokeStyle = "rgba(139,125,255,.30)";
+          } else if (map.id === "btccitadel") {
+            cardGlow(ctx, 270, 770, 460, "rgba(255,211,90,.12)");
+            drawCitadel();
+            ctx.strokeStyle = "rgba(255,211,90,.26)";
+          } else {
+            ctx.strokeStyle = "rgba(48,255,159,.28)";
+          }
           ctx.lineWidth = 2.6;
-          const drift = Number(score) || 0;
           ctx.beginPath();
           for (let x = 0; x <= W + 60; x += 36) {
-            const y = 760 + Math.sin((x + drift) * 0.035) * 30 + Math.sin((x + drift) * 0.012) * 46;
+            const y = 760 + Math.sin((x + t * 60) * 0.035) * 30 + Math.sin((x + t * 60) * 0.012) * 46;
             if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
           }
           ctx.stroke();
-          drawFarCoin();
+          ctx.restore();
         }
 
         function drawRocket(x, y, scale, angle, skin, mode = "game") {
@@ -1182,13 +1256,12 @@
           drawStartStatChip(364, 498, L("wallet"), progress.coins, "#ffd75e", true);
           text(`${selectedSkin().market} MARKET SKIN`, 270, 535, 13, selectedSkin().accent, "850");
           featureStrip(270, 606);
-          btn(270, 700, 342, 72, L("play"), "#00d9ff");
-          btn(180, 780, 166, 56, L("vault"), "#7d6cff");
-          btn(360, 780, 166, 56, L("leaders"), "#ffd35a");
-          btn(104, 850, 128, 46, progress.lang === "ru" ? "RU" : "EN", "#20e8ff");
-          btn(270, 850, 150, 46, muted ? L("soundOff") : L("soundOn"), "#30ff9f");
-          btn(438, 850, 136, 46, L("daily"), "#ffd35a");
-          btn(270, 910, 250, 38, `${L("nicknameShort")}: ${displayName()}`, "#2defff");
+          btn(270, 684, 342, 68, L("play"), "#00d9ff");
+          btn(180, 764, 166, 54, L("vault"), "#7d6cff");
+          btn(360, 764, 166, 54, L("maps"), selectedMap().accent);
+          btn(180, 834, 166, 52, L("leaders"), "#ffd35a");
+          btn(360, 834, 166, 52, L("settings"), "#30ff9f");
+          btn(270, 900, 250, 46, L("daily"), "#ffd35a");
         }
 
         function drawOver() {
@@ -1228,6 +1301,45 @@
           btn(270, 882, 342, 58, L("back"), "#7d6cff");
         }
 
+        function drawMaps() {
+          drawBg();
+          brandHeader(270, 58);
+          text(L("maps"), 270, 105, 39, "#effcff", "950");
+          drawWalletCard(270, 154);
+          const visibleMaps = maps.slice(mapPage * 3, mapPage * 3 + 3);
+          visibleMaps.forEach((map, i) => {
+            const y = 270 + i * 164;
+            const owned = progress.unlockedMaps.includes(map.id);
+            const selected = progress.selectedMap === map.id;
+            panel(270, y, 462, 136, selected ? map.accent : owned ? "#30ff9f" : "#283f5d");
+            drawMapPreview(126, y, 118, 92, map);
+            leftText(map.name, 205, y - 40, 22, "#effcff", "950");
+            leftText(selected ? L("equipped") : owned ? L("unlocked") : `${map.price} ${L("coins")}`, 205, y - 8, 15, selected ? "#30ff9f" : owned ? "#7de9ff" : "#ffd75e", "850");
+            leftText(mapDescription(map), 205, y + 24, 12, "#8eb3c2", "780");
+            btn(416, y + 8, 112, 44, selected ? L("equipped") : owned ? L("select") : progress.coins >= map.price ? "BUY" : L("locked"), selected ? "#30ff9f" : owned ? "#00d9ff" : "#ffd35a");
+          });
+          btn(158, 800, 130, 48, "<", "#7d6cff");
+          text(`${L("page")} ${mapPage + 1}/${Math.ceil(maps.length / 3)}`, 270, 800, 16, "#9dc5d5", "850");
+          btn(382, 800, 130, 48, ">", "#7d6cff");
+          btn(270, 882, 342, 58, L("back"), "#7d6cff");
+        }
+
+        function drawSettings() {
+          drawBg();
+          brandHeader(270, 66);
+          text(L("settings"), 270, 132, 40, "#effcff", "950");
+          panel(270, 284, 430, 180, "#2defff");
+          text(displayName(), 270, 244, 30, "#effcff", "950");
+          text(`ID ${progress.userId.slice(-8).toUpperCase()}`, 270, 286, 13, "#7899aa", "850");
+          btn(270, 354, 342, 54, L("nicknameEdit"), "#00d9ff");
+          btn(170, 452, 150, 52, muted ? L("soundOff") : L("soundOn"), "#30ff9f");
+          btn(370, 452, 150, 52, `${L("language")} ${progress.lang === "ru" ? "RU" : "EN"}`, "#20e8ff");
+          btn(270, 552, 342, 58, L("promo"), "#ffd35a");
+          if (promoStatus) text(promoStatus, 270, 602, 16, promoStatus === L("promoApplied") ? "#30ff9f" : "#ff7890", "900");
+          btn(270, 724, 342, 58, L("daily"), "#ffd35a");
+          btn(270, 810, 342, 58, L("back"), "#7d6cff");
+        }
+
         function drawLeaders() {
           drawBg();
           brandHeader(270, 48);
@@ -1242,7 +1354,7 @@
             leftText(row.name, 120, y, 15, isYou ? "#effcff" : "#b9d6df", "900");
             text(String(row.score), 432, y, 17, isYou ? "#30ff9f" : "#7de9ff", "950");
           });
-          btn(270, 842, 260, 44, L("nicknameEdit"), "#2defff");
+          btn(270, 842, 260, 44, L("settings"), "#2defff");
           btn(270, 902, 342, 50, L("back"), "#7d6cff");
         }
 
@@ -1388,18 +1500,52 @@
           }
         }
 
+        async function chooseMap(map) {
+          const owned = progress.unlockedMaps.includes(map.id);
+          if (hasTelegramAuth()) {
+            try {
+              const data = await api(owned ? "/api/map/select" : "/api/map/buy", {
+                method: "POST",
+                body: { mapId: map.id }
+              });
+              applyServerProfile(data.profile);
+              beep("buy");
+              return;
+            } catch {
+              impact = 8;
+              beep("crash");
+              return;
+            }
+          }
+          if (owned) {
+            progress.selectedMap = map.id;
+            save();
+            beep("buy");
+          } else if (progress.coins >= map.price) {
+            progress.coins -= map.price;
+            progress.unlockedMaps.push(map.id);
+            progress.selectedMap = map.id;
+            save();
+            beep("buy");
+          } else {
+            impact = 8;
+            beep("crash");
+          }
+        }
+
         function click(x, y) {
           if (state === "game") return flap();
           if (state === "start") {
-            if (inRect(x, y, 270, 910, 220, 34)) state = "nickname";
-            if (inRect(x, y, 270, 700, 342, 72)) resetRun();
-            else if (inRect(x, y, 180, 780, 166, 56)) {
+            if (inRect(x, y, 270, 684, 342, 68)) resetRun();
+            else if (inRect(x, y, 180, 764, 166, 54)) {
               shopPage = 0;
               state = "shop";
-            } else if (inRect(x, y, 360, 780, 166, 56)) state = "leaders";
-            else if (inRect(x, y, 104, 850, 128, 46)) toggleLanguage();
-            else if (inRect(x, y, 270, 850, 150, 46)) muted = !muted;
-            else if (inRect(x, y, 438, 850, 136, 46)) state = "daily";
+            } else if (inRect(x, y, 360, 764, 166, 54)) {
+              mapPage = 0;
+              state = "maps";
+            } else if (inRect(x, y, 180, 834, 166, 52)) state = "leaders";
+            else if (inRect(x, y, 360, 834, 166, 52)) state = "settings";
+            else if (inRect(x, y, 270, 900, 250, 46)) state = "daily";
           } else if (state === "over") {
             if (inRect(x, y, 270, 682, 342, 72)) resetRun();
             else if (inRect(x, y, 270, 770, 342, 64)) {
@@ -1415,8 +1561,16 @@
               if (!inRect(x, y, 416, 230 + i * 104, 112, 44)) return;
               chooseSkin(skin);
             });
+          } else if (state === "maps") {
+            if (inRect(x, y, 270, 882, 342, 58)) state = "start";
+            if (inRect(x, y, 158, 800, 130, 48)) mapPage = Math.max(0, mapPage - 1);
+            if (inRect(x, y, 382, 800, 130, 48)) mapPage = Math.min(Math.ceil(maps.length / 3) - 1, mapPage + 1);
+            maps.slice(mapPage * 3, mapPage * 3 + 3).forEach((map, i) => {
+              if (!inRect(x, y, 416, 270 + i * 164 + 8, 112, 44)) return;
+              chooseMap(map);
+            });
           } else if (state === "leaders") {
-            if (inRect(x, y, 270, 842, 260, 44)) state = "nickname";
+            if (inRect(x, y, 270, 842, 260, 44)) state = "settings";
             if (inRect(x, y, 270, 902, 342, 50)) state = "start";
           } else if (state === "daily") {
             if (inRect(x, y, 270, 690, 342, 68)) collectDaily();
@@ -1435,6 +1589,13 @@
               });
             }
             if (inRect(x, y, 270, 724, 342, 58)) state = "start";
+          } else if (state === "settings") {
+            if (inRect(x, y, 270, 354, 342, 54)) askNickname();
+            if (inRect(x, y, 170, 452, 150, 52)) muted = !muted;
+            if (inRect(x, y, 370, 452, 150, 52)) toggleLanguage();
+            if (inRect(x, y, 270, 552, 342, 58)) askPromo();
+            if (inRect(x, y, 270, 724, 342, 58)) state = "daily";
+            if (inRect(x, y, 270, 810, 342, 58)) state = "start";
           }
         }
 
@@ -1444,7 +1605,7 @@
             ? `Fomo Flight: NEW ATH ${data.ath} PNL, +${data.vtc} VTC. Can you beat it?\n@FomoFlightBot`
             : `Fomo Flight: ${data.score} PNL, +${data.vtc} VTC. Can you beat my ATH?\n@FomoFlightBot`;
           const appLink = miniAppLink;
-          const storyText = `${message}\n${appLink}`;
+          const storyText = (data.newBest ? `NEW ATH ${data.ath} PNL, +${data.vtc} VTC\n@FomoFlightBot` : `${data.score} PNL, +${data.vtc} VTC\n@FomoFlightBot`).slice(0, 190);
           const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appLink)}&text=${encodeURIComponent(message)}`;
           const card = createShareCard(data);
           try {
@@ -1479,7 +1640,7 @@
         }
 
         async function uploadShareCard(card) {
-          const image = card.toDataURL("image/jpeg", 0.9);
+          const image = card.toDataURL("image/png");
           return api("/api/share-card", {
             method: "POST",
             body: { image }
@@ -1769,12 +1930,30 @@
         }
 
         function askNickname() {
+          modalMode = "nickname";
           nickTitle.textContent = L("nicknameTitle");
           nickHint.textContent = L("nicknameHint");
           nickSave.textContent = L("nicknameButton");
           nickCancel.textContent = L("nicknameCancel");
           nickError.textContent = "";
+          nickInput.maxLength = 14;
           nickInput.value = progress.nickname || displayName();
+          nickModal.hidden = false;
+          setTimeout(() => {
+            nickInput.focus();
+            nickInput.select();
+          }, 40);
+        }
+
+        function askPromo() {
+          modalMode = "promo";
+          nickTitle.textContent = L("promo");
+          nickHint.textContent = L("promoHint");
+          nickSave.textContent = L("promoButton");
+          nickCancel.textContent = L("nicknameCancel");
+          nickError.textContent = "";
+          nickInput.maxLength = 24;
+          nickInput.value = "";
           nickModal.hidden = false;
           setTimeout(() => {
             nickInput.focus();
@@ -1789,6 +1968,7 @@
         }
 
         async function saveNicknameFromModal() {
+          if (modalMode === "promo") return redeemPromoFromModal();
           const problem = nicknameProblem(nickInput.value);
           if (problem) {
             nickError.textContent = L(problem);
@@ -1802,6 +1982,30 @@
           else {
             progress.nickname = previous;
             save();
+          }
+        }
+
+        async function redeemPromoFromModal() {
+          const code = String(nickInput.value || "").trim();
+          if (!code) {
+            nickError.textContent = L("promoInvalid");
+            return;
+          }
+          if (!hasTelegramAuth()) {
+            nickError.textContent = L("promoNeedTg");
+            return;
+          }
+          try {
+            const data = await api("/api/promo/redeem", { method: "POST", body: { code } });
+            applyServerProfile(data.profile);
+            promoStatus = L("promoApplied");
+            nickError.textContent = `${L("promoApplied")} +${data.reward || 0} VTC`;
+            beep("buy");
+          } catch (error) {
+            const key = error.message === "promo_limit" ? "promoLimit" : "promoInvalid";
+            promoStatus = L(key);
+            nickError.textContent = L(key);
+            beep("crash");
           }
         }
 
@@ -2056,6 +2260,63 @@
           ctx.restore();
         }
 
+        function mapDescription(map) {
+          return {
+            terminal: "clean VT grid",
+            bull: "green momentum",
+            bear: "red danger tape",
+            ethprism: "violet network",
+            liquidation: "neon city risk",
+            btccitadel: "legendary gold"
+          }[map.id] || "market map";
+        }
+
+        function drawMapPreview(x, y, w, h, map) {
+          ctx.save();
+          roundRect(x - w / 2, y - h / 2, w, h, 10, "#050b17");
+          ctx.save();
+          ctx.beginPath();
+          roundedPath(x - w / 2, y - h / 2, w, h, 10);
+          ctx.clip();
+          const g = ctx.createLinearGradient(x - w / 2, y - h / 2, x + w / 2, y + h / 2);
+          g.addColorStop(0, "#030712");
+          g.addColorStop(0.6, map.id === "bull" ? "#05291b" : map.id === "bear" ? "#260716" : map.id === "btccitadel" ? "#241906" : "#071329");
+          g.addColorStop(1, "#030711");
+          ctx.fillStyle = g;
+          ctx.fillRect(x - w / 2, y - h / 2, w, h);
+          ctx.strokeStyle = "rgba(74,144,190,.25)";
+          ctx.lineWidth = 1;
+          for (let gx = x - w / 2; gx <= x + w / 2; gx += 18) line(gx, y - h / 2, gx, y + h / 2);
+          for (let gy = y - h / 2; gy <= y + h / 2; gy += 18) line(x - w / 2, gy, x + w / 2, gy);
+          ctx.strokeStyle = map.accent;
+          ctx.lineWidth = 2;
+          ctx.globalAlpha = 0.72;
+          if (map.id === "ethprism") {
+            line(x - 40, y + 18, x - 8, y - 26);
+            line(x - 8, y - 26, x + 42, y + 8);
+            circle(x - 8, y - 26, 3, map.accent);
+            circle(x + 42, y + 8, 3, "#2defff");
+          } else if (map.id === "liquidation") {
+            for (let i = 0; i < 5; i += 1) roundRect(x - 48 + i * 23, y + 30 - i * 10, 14, 46 + i * 9, 3, i % 2 ? "#ff45d7" : "#ff4564");
+          } else if (map.id === "btccitadel") {
+            for (let i = 0; i < 4; i += 1) roundRect(x - 39 + i * 26, y - 18, 16, 54, 3, "#ffd35a");
+          } else {
+            ctx.beginPath();
+            for (let i = 0; i < 7; i += 1) {
+              const px = x - 48 + i * 16;
+              const py = y + 22 - Math.sin(i * 0.8 + (map.id === "bear" ? 2 : 0)) * 18 - (map.id === "bull" ? i * 4 : 0);
+              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+          ctx.strokeStyle = map.accent;
+          ctx.lineWidth = 2;
+          roundedPath(x - w / 2, y - h / 2, w, h, 10);
+          ctx.stroke();
+          ctx.restore();
+        }
+
         function drawMarketMedallion(skin, x, y, r) {
           ctx.save();
           ctx.shadowColor = skin.accent;
@@ -2207,7 +2468,7 @@
             [L("best"), String(progress.best)],
             [L("skin"), selectedSkin().name.replace("VT ", "")],
             [L("coins"), String(progress.coins)],
-            [L("daily"), progress.lastDaily === today() ? L("received") : "+50"]
+            [L("map"), selectedMap().name.replace("VT ", "")]
           ];
           const cellW = 100;
           const startX = x - 150;
@@ -2294,6 +2555,62 @@
           ctx.restore();
         }
 
+        function drawEdgeCandles(color, alpha) {
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = color;
+          [38, 88, 452, 500].forEach((x, i) => {
+            const h = 94 + i * 26;
+            roundRect(x - 9, 124 + i * 42, 18, h, 4, color);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            line(x, 104 + i * 42, x, 236 + h * 0.35 + i * 42);
+          });
+          ctx.restore();
+        }
+
+        function drawCityCandles() {
+          ctx.save();
+          ctx.globalAlpha = 0.28;
+          const colors = ["#00e5ff", "#ff45d7", "#7d5cff", "#ff4564"];
+          for (let i = 0; i < 10; i += 1) {
+            const x = 36 + i * 54;
+            const h = 58 + (i % 4) * 38;
+            roundRect(x - 13, 760 - h, 26, h, 4, colors[i % colors.length]);
+            ctx.strokeStyle = colors[i % colors.length];
+            ctx.lineWidth = 2;
+            line(x, 742 - h, x, 792);
+          }
+          ctx.restore();
+        }
+
+        function drawPrismNetwork() {
+          ctx.save();
+          ctx.globalAlpha = 0.34;
+          ctx.strokeStyle = "#8b7dff";
+          ctx.lineWidth = 1.5;
+          const pts = [[410, 165], [482, 252], [430, 360], [500, 475], [385, 600], [462, 730]];
+          pts.forEach((p, i) => {
+            circle(p[0], p[1], 3.2, i % 2 ? "#2defff" : "#8b7dff");
+            if (i) line(pts[i - 1][0], pts[i - 1][1], p[0], p[1]);
+          });
+          ctx.restore();
+        }
+
+        function drawCitadel() {
+          ctx.save();
+          ctx.globalAlpha = 0.24;
+          ctx.fillStyle = "#ffd35a";
+          for (let i = 0; i < 7; i += 1) {
+            const x = 42 + i * 76;
+            const h = 70 + (i % 3) * 32;
+            roundRect(x - 15, 150 - h * 0.25, 30, h, 4, "#ffd35a");
+            ctx.strokeStyle = "#fff08a";
+            line(x, 118 - h * 0.4, x, 190);
+          }
+          ctx.restore();
+        }
+
         function drawCodeRain() {
           ctx.save();
           ctx.font = "700 11px ui-monospace, Consolas, monospace";
@@ -2316,7 +2633,8 @@
         nickCancel.addEventListener("click", closeNicknameModal);
         nickSave.addEventListener("click", saveNicknameFromModal);
         nickInput.addEventListener("input", () => {
-          nickInput.value = sanitizeNickname(nickInput.value);
+          if (modalMode === "nickname") nickInput.value = sanitizeNickname(nickInput.value);
+          else nickInput.value = String(nickInput.value || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24);
           nickError.textContent = "";
         });
         nickInput.addEventListener("keydown", (e) => {
@@ -2341,9 +2659,11 @@
           if (state === "game") drawGame();
           if (state === "over") drawOver();
           if (state === "shop") drawShop();
+          if (state === "maps") drawMaps();
           if (state === "leaders") drawLeaders();
           if (state === "daily") drawDaily();
           if (state === "nickname") drawNickname();
+          if (state === "settings") drawSettings();
           ctx.restore();
           requestAnimationFrame(frame);
         }

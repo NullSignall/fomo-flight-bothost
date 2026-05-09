@@ -12,7 +12,7 @@ const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.js
 const publicUrl = String(process.env.PUBLIC_URL || "https://bot-1778289451-5878-nullsignal.bothost.tech").replace(/\/+$/, "");
 const miniAppLink = process.env.MINI_APP_LINK || "https://t.me/FomoFlightBot?startapp=share";
 const shareDir = process.env.SHARE_DIR || path.join(__dirname, "data", "share");
-const buildVersion = "2026-05-09-icons-1";
+const buildVersion = "2026-05-09-maps-settings-1";
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 1150],
@@ -30,8 +30,19 @@ const skinPrices = new Map([
   ["eth", 49000],
   ["btc", 64000]
 ]);
+const mapPrices = new Map([
+  ["terminal", 0],
+  ["bull", 7500],
+  ["bear", 11000],
+  ["ethprism", 18000],
+  ["liquidation", 28000],
+  ["btccitadel", 45000]
+]);
+const promoCodes = new Map([
+  ["valentin", { reward: 100000, maxUses: 10 }]
+]);
 
-app.use(express.json({ limit: "6mb" }));
+app.use(express.json({ limit: "12mb" }));
 app.use((req, res, next) => {
   res.setHeader("x-fomo-flight-build", buildVersion);
   next();
@@ -142,6 +153,54 @@ app.post("/api/skin/buy", auth, (req, res) => {
   res.json({ profile: user });
 });
 
+app.post("/api/map/select", auth, (req, res) => {
+  const store = readStore();
+  const user = getUser(req.telegramUser, store);
+  const mapId = String(req.body.mapId || "");
+  if (!mapPrices.has(mapId)) return res.status(400).json({ error: "unknown_map" });
+  if (!user.unlockedMaps.includes(mapId)) return res.status(400).json({ error: "map_locked" });
+  user.selectedMap = mapId;
+  user.updatedAt = new Date().toISOString();
+  store.users[user.telegramId] = user;
+  writeStore(store);
+  res.json({ profile: user });
+});
+
+app.post("/api/map/buy", auth, (req, res) => {
+  const store = readStore();
+  const user = getUser(req.telegramUser, store);
+  const mapId = String(req.body.mapId || "");
+  const price = mapPrices.get(mapId);
+  if (price === undefined) return res.status(400).json({ error: "unknown_map" });
+  if (!user.unlockedMaps.includes(mapId)) {
+    if (user.totalVtc < price) return res.status(400).json({ error: "not_enough_vtc" });
+    user.totalVtc -= price;
+    user.unlockedMaps.push(mapId);
+  }
+  user.selectedMap = mapId;
+  user.updatedAt = new Date().toISOString();
+  store.users[user.telegramId] = user;
+  writeStore(store);
+  res.json({ profile: user });
+});
+
+app.post("/api/promo/redeem", auth, (req, res) => {
+  const store = readStore();
+  const user = getUser(req.telegramUser, store);
+  const code = normalizePromoCode(req.body.code);
+  const promo = promoCodes.get(code);
+  if (!promo) return res.status(400).json({ error: "promo_invalid" });
+  user.promoUses = user.promoUses && typeof user.promoUses === "object" ? user.promoUses : {};
+  const used = Math.max(0, Math.floor(Number(user.promoUses[code]) || 0));
+  if (used >= promo.maxUses) return res.status(400).json({ error: "promo_limit" });
+  user.promoUses[code] = used + 1;
+  user.totalVtc += promo.reward;
+  user.updatedAt = new Date().toISOString();
+  store.users[user.telegramId] = user;
+  writeStore(store);
+  res.json({ accepted: true, reward: promo.reward, usesLeft: promo.maxUses - user.promoUses[code], profile: user });
+});
+
 app.post("/api/run/submit", auth, (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
@@ -191,7 +250,7 @@ app.post("/api/daily/claim", auth, (req, res) => {
 app.post("/api/share-card", auth, (req, res) => {
   const image = String(req.body.image || "");
   const match = image.match(/^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=]+)$/);
-  if (!match || match[2].length > 5_500_000) return res.status(400).json({ error: "bad_image" });
+  if (!match || match[2].length > 10_500_000) return res.status(400).json({ error: "bad_image" });
 
   const userId = String(req.telegramUser.id);
   const id = `${userId}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
@@ -259,6 +318,9 @@ function getUser(tgUser, store = readStore()) {
       bestScore: 0,
       selectedSkin: "vt",
       unlockedSkins: ["vt"],
+      selectedMap: "terminal",
+      unlockedMaps: ["terminal"],
+      promoUses: {},
       dailyStreak: 0,
       lastDaily: "",
       updatedAt: new Date().toISOString()
@@ -275,6 +337,10 @@ function normalizeUser(user) {
   user.unlockedSkins = Array.isArray(user.unlockedSkins) ? [...new Set(user.unlockedSkins.filter((id) => skinPrices.has(id)))] : ["vt"];
   if (!user.unlockedSkins.includes("vt")) user.unlockedSkins.unshift("vt");
   user.selectedSkin = user.unlockedSkins.includes(user.selectedSkin) ? user.selectedSkin : "vt";
+  user.unlockedMaps = Array.isArray(user.unlockedMaps) ? [...new Set(user.unlockedMaps.filter((id) => mapPrices.has(id)))] : ["terminal"];
+  if (!user.unlockedMaps.includes("terminal")) user.unlockedMaps.unshift("terminal");
+  user.selectedMap = user.unlockedMaps.includes(user.selectedMap) ? user.selectedMap : "terminal";
+  user.promoUses = user.promoUses && typeof user.promoUses === "object" ? user.promoUses : {};
   user.dailyStreak = Math.max(0, Math.min(7, Math.floor(Number(user.dailyStreak) || 0)));
   user.lastDaily = typeof user.lastDaily === "string" ? user.lastDaily : "";
   return user;
@@ -292,6 +358,10 @@ function validateRun(run, user, store) {
 
 function sanitizeName(value) {
   return String(value || "").replace(/[^\w\u0430-\u044f\u0410-\u042f\u0451\u0401 -]/g, "").trim().slice(0, 24) || "Pilot";
+}
+
+function normalizePromoCode(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
 }
 
 function normalizeNameForCompare(value) {
