@@ -99,6 +99,8 @@
             nicknameTitle: "CALLSIGN",
             nicknameHint: "Choose how you appear in the leaderboard",
             nicknameButton: "SAVE CALLSIGN",
+            nicknameEdit: "EDIT CALLSIGN",
+            nicknameShort: "NICK",
             nicknameRandom: "RANDOM"
           },
           ru: {
@@ -135,7 +137,13 @@
             streak: "\u0421\u0415\u0420\u0418\u042f",
             day: "\u0414\u0415\u041d\u042c",
             collect: "\u0417\u0410\u0411\u0420\u0410\u0422\u042c",
-            comeBack: "\u0417\u0410\u0412\u0422\u0420\u0410 \u0415\u0429\u0415"
+            comeBack: "\u0417\u0410\u0412\u0422\u0420\u0410 \u0415\u0429\u0415",
+            nicknameTitle: "\u041D\u0418\u041A",
+            nicknameHint: "\u041A\u0430\u043A \u0442\u0435\u0431\u044F \u0432\u0438\u0434\u044F\u0442 \u0432 \u0440\u0435\u0439\u0442\u0438\u043D\u0433\u0435",
+            nicknameButton: "\u0421\u041E\u0425\u0420\u0410\u041D\u0418\u0422\u042C \u041D\u0418\u041A",
+            nicknameEdit: "\u0418\u0417\u041C\u0415\u041D\u0418\u0422\u042C \u041D\u0418\u041A",
+            nicknameShort: "\u041D\u0418\u041A",
+            nicknameRandom: "\u0421\u041B\u0423\u0427\u0410\u0419\u041D\u042B\u0419"
           }
         };
         const load = () => {
@@ -764,7 +772,7 @@
           btn(104, 850, 128, 46, progress.lang === "ru" ? "RU" : "EN", "#20e8ff");
           btn(270, 850, 150, 46, muted ? L("soundOff") : L("soundOn"), "#30ff9f");
           btn(438, 850, 136, 46, L("daily"), "#ffd35a");
-          text(displayName(), 270, 910, 14, "#7899aa", "850");
+          btn(270, 910, 250, 38, `${L("nicknameShort")}: ${displayName()}`, "#2defff");
         }
 
         function drawOver() {
@@ -818,7 +826,7 @@
             leftText(row.name, 120, y, 15, isYou ? "#effcff" : "#b9d6df", "900");
             text(String(row.score), 432, y, 17, isYou ? "#30ff9f" : "#7de9ff", "950");
           });
-          text(cloudReady ? (progress.lang === "ru" ? "\u041F\u0440\u043E\u0433\u0440\u0435\u0441\u0441 \u043F\u0440\u0438\u0432\u044F\u0437\u0430\u043D \u043A Telegram ID" : "Progress is tied to Telegram ID") : (progress.lang === "ru" ? "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 \u0440\u0435\u0436\u0438\u043C: \u043E\u0442\u043A\u0440\u043E\u0439 \u0432 Telegram" : "Local mode: open in Telegram"), 270, 842, 13, "#7899aa", "780");
+          btn(270, 842, 260, 44, L("nicknameEdit"), "#2defff");
           btn(270, 902, 342, 50, L("back"), "#7d6cff");
         }
 
@@ -886,15 +894,19 @@
         function leaderboardRows() {
           const best = Math.floor(progress.best);
           if (leaderboardCache.length) {
+            const myName = displayName().toLowerCase();
             const remote = leaderboardCache.map((row) => ({
               name: sanitizeNickname(row.displayName || row.name || "Pilot"),
               score: Math.max(0, Math.floor(Number(row.bestScore ?? row.score) || 0))
             }));
-            remote.push({ name: displayName(), score: best, me: true });
+            remote.forEach((row) => {
+              if (row.name.toLowerCase() === myName && row.score === best) row.me = true;
+            });
+            if (!remote.some((row) => row.me)) remote.push({ name: displayName(), score: best, me: true });
             const unique = [];
             const seen = new Set();
             for (const row of remote.sort((a, b) => b.score - a.score)) {
-              const key = row.me ? "me" : `${row.name}:${row.score}`;
+              const key = row.me ? "me" : row.name.toLowerCase();
               if (seen.has(key)) continue;
               seen.add(key);
               unique.push(row);
@@ -988,6 +1000,7 @@
               chooseSkin(skin);
             });
           } else if (state === "leaders") {
+            if (inRect(x, y, 270, 842, 260, 44)) state = "nickname";
             if (inRect(x, y, 270, 902, 342, 50)) state = "start";
           } else if (state === "daily") {
             if (inRect(x, y, 270, 690, 342, 68)) collectDaily();
@@ -1005,8 +1018,11 @@
 
         function share() {
           const message = `Fomo Flight: ${Math.floor(score)} PNL, +${runCoins} VTC. Can you beat my ATH?`;
-          if (navigator.share) navigator.share({ title: "Fomo Flight", text: message }).catch(() => {});
-          else navigator.clipboard && navigator.clipboard.writeText(message);
+          const appLink = `${location.origin}/`;
+          const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appLink)}&text=${encodeURIComponent(message)}`;
+          if (tg && tg.openTelegramLink) tg.openTelegramLink(shareUrl);
+          else if (navigator.share) navigator.share({ title: "Fomo Flight", text: message, url: appLink }).catch(() => window.open(shareUrl, "_blank"));
+          else window.open(shareUrl, "_blank");
           beep("buy");
         }
 
