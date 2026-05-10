@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -122,7 +122,8 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-09-maps-settings-1";
+        const BUILD = "2026-05-10-feedback-1";
+        const DAILY_MAX = 12;
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
         const nickTitle = document.getElementById("nickTitle");
@@ -169,7 +170,7 @@
             best: "BEST",
             skin: "SKIN",
             coins: "VTC",
-            daily: "DAILY",
+            daily: "BONUS",
             received: "RECEIVED",
             wallet: "WALLET",
             play: "PLAY",
@@ -177,6 +178,7 @@
             leaders: "LEADERS",
             dailyTitle: "DAILY DROP",
             back: "BACK",
+            menu: "MENU",
             soundOn: "SOUND ON",
             soundOff: "SOUND OFF",
             claim: "+50 DAILY",
@@ -226,7 +228,7 @@
             best: "\u0420\u0415\u041a\u041e\u0420\u0414",
             skin: "\u0421\u041a\u0418\u041d",
             coins: "VTC",
-            daily: "\u0414\u0415\u041d\u042c",
+            daily: "\u0411\u041E\u041D\u0423\u0421",
             received: "\u041f\u041e\u041b\u0423\u0427\u0415\u041d\u041e",
             wallet: "\u0411\u0410\u041b\u0410\u041d\u0421",
             play: "\u0418\u0413\u0420\u0410\u0422\u042c",
@@ -234,6 +236,7 @@
             leaders: "\u0420\u0415\u0419\u0422\u0418\u041d\u0413",
             dailyTitle: "\u0414\u041d\u0415\u0412\u041d\u041e\u0419 \u0414\u0420\u041e\u041f",
             back: "\u041d\u0410\u0417\u0410\u0414",
+            menu: "\u041C\u0415\u041D\u042E",
             soundOn: "\u0417\u0412\u0423\u041a \u0412\u041a\u041b",
             soundOff: "\u0417\u0412\u0423\u041a \u0412\u042b\u041a\u041b",
             claim: "+50 \u0414\u0415\u041d\u042c",
@@ -327,7 +330,7 @@
           spawnTimer = 760;
           impact = 0;
           runStartedAt = performance.now();
-          effects = { magnet: 0, shield: 0, slowmo: 0, double: 0 };
+          effects = { magnet: 0, shield: 0, slowmo: 0, double: 0, pump: 0 };
           nextPowerupScore = 230 + Math.random() * 170;
           state = "game";
         }
@@ -360,7 +363,7 @@
           }
           const yesterday = dateKey(-1);
           const nextStreak = progress.lastDaily === yesterday ? progress.streak + 1 : 1;
-          progress.streak = nextStreak > 7 ? 1 : nextStreak;
+          progress.streak = nextStreak > DAILY_MAX ? 1 : nextStreak;
           progress.coins += 50;
           progress.lastDaily = today();
           save();
@@ -379,7 +382,7 @@
           const unlockedMaps = Array.isArray(value.unlockedMaps) ? value.unlockedMaps.filter((id) => mapIds.includes(id)) : ["terminal"];
           if (!unlocked.includes("vt")) unlocked.unshift("vt");
           if (!unlockedMaps.includes("terminal")) unlockedMaps.unshift("terminal");
-          const rawStreak = Math.max(0, Math.min(7, Number(value.streak) || 0));
+          const rawStreak = Math.max(0, Math.min(DAILY_MAX, Number(value.streak) || 0));
           const migratedStreak = rawStreak === 0 && value.lastDaily === today() ? 1 : rawStreak;
           const selectedMapRaw = mapIds.includes(value.selectedMap) ? value.selectedMap : "terminal";
           return {
@@ -505,7 +508,7 @@
           progress.unlocked = Array.isArray(profile.unlockedSkins) && profile.unlockedSkins.length ? profile.unlockedSkins : progress.unlocked;
           progress.selectedMap = maps.some((map) => map.id === profile.selectedMap) ? profile.selectedMap : progress.selectedMap;
           progress.unlockedMaps = Array.isArray(profile.unlockedMaps) && profile.unlockedMaps.length ? profile.unlockedMaps : progress.unlockedMaps;
-          progress.streak = Math.max(0, Math.min(7, Number(profile.dailyStreak) || 0));
+          progress.streak = Math.max(0, Math.min(DAILY_MAX, Number(profile.dailyStreak) || 0));
           progress.lastDaily = String(profile.lastDaily || "");
           progress.nickname = sanitizeNickname(profile.displayName || progress.nickname);
           cloudReady = true;
@@ -744,13 +747,29 @@
           }
         }
 
+        function spawnPumpCoins() {
+          const baseY = H * 0.44 + (Math.random() - 0.5) * 120;
+          const count = 7 + Math.floor(Math.random() * 3);
+          for (let i = 0; i < count; i += 1) {
+            const t = count === 1 ? 0.5 : i / (count - 1);
+            coins.push({
+              x: W + 112 + i * 42,
+              y: baseY + Math.sin(t * Math.PI * 2) * 28,
+              r: 14,
+              spin: 0,
+              value: i === Math.floor(count / 2) ? 2 : 1
+            });
+          }
+        }
+
         function spawnPowerup(x, y) {
           const table = [
-            ["super", 0.28],
-            ["magnet", 0.24],
-            ["shield", 0.2],
-            ["slowmo", 0.14],
-            ["double", 0.14]
+            ["super", 0.23],
+            ["magnet", 0.22],
+            ["shield", 0.18],
+            ["slowmo", 0.13],
+            ["double", 0.16],
+            ["pump", 0.08]
           ];
           let roll = Math.random();
           let type = "super";
@@ -761,28 +780,42 @@
               break;
             }
           }
-          powerups.push({ type, x, y: Math.max(116, Math.min(H - 126, y)), r: type === "super" ? 24 : 21, spin: 0, pulse: Math.random() * Math.PI * 2 });
+          powerups.push({ type, x, y: Math.max(116, Math.min(H - 126, y)), r: type === "super" || type === "pump" ? 24 : 21, spin: 0, pulse: Math.random() * Math.PI * 2 });
         }
 
         function update(dt) {
           if (state !== "game") return;
           const difficulty = difficultyCurve();
           tickEffects(dt);
-          const slowFactor = effects.slowmo > 0 ? 0.62 : 1;
+          const pumpActive = effects.pump > 0;
+          const slowFactor = effects.slowmo > 0 && !pumpActive ? 0.62 : 1;
+          const pumpFactor = pumpActive ? 1.95 : 1;
           speed += (difficulty.speed - speed) * Math.min(1, dt * 1.8);
-          const worldSpeed = speed * slowFactor;
+          const worldSpeed = speed * slowFactor * pumpFactor;
           score += worldSpeed * dt / 15.5;
-          spawnTimer -= dt * 1000 * (effects.slowmo > 0 ? 0.74 : 1);
+          spawnTimer -= dt * 1000 * (pumpActive ? 1.25 : effects.slowmo > 0 ? 0.74 : 1);
           if (spawnTimer <= 0) {
-            spawnPair();
-            spawnTimer = difficulty.spawn;
+            if (pumpActive) {
+              spawnPumpCoins();
+              spawnTimer = 520;
+            } else {
+              spawnPair();
+              spawnTimer = difficulty.spawn;
+            }
           }
-          player.vy += 1130 * dt;
+          player.vy += (pumpActive ? 520 : 1130) * dt;
+          if (pumpActive) {
+            player.vy += (-125 - player.vy) * Math.min(1, dt * 4);
+            player.y += (H * 0.43 - player.y) * Math.min(1, dt * 1.2);
+          }
           player.y += player.vy * dt;
           player.angle = Math.max(-0.42, Math.min(0.58, player.vy / 980));
           if (Math.random() < 0.85) {
             const s = selectedSkin();
             particles.push({ x: player.x - 46, y: player.y + (Math.random() - 0.5) * 18, vx: -90 - Math.random() * 70, vy: (Math.random() - 0.5) * 32, life: 0.35, c: s.trail, r: 5 + Math.random() * 4 });
+          }
+          if (pumpActive && Math.random() < 0.95) {
+            particles.push({ x: player.x - 66, y: player.y + (Math.random() - 0.5) * 22, vx: -260 - Math.random() * 180, vy: (Math.random() - 0.5) * 44, life: 0.28 + Math.random() * 0.18, c: Math.random() > 0.45 ? "#ff7a30" : "#ffd75e", r: 6 + Math.random() * 8 });
           }
           stars.forEach((star) => {
             star.x -= star.s * dt;
@@ -820,8 +853,10 @@
           coins = coins.filter((coin) => !coin.hit);
           powerups = powerups.filter((p) => !p.hit);
 
-          const hit = obstacles.find(hitObstacle);
-          if (player.y < 32 || player.y > H - 32) {
+          const hit = pumpActive ? null : obstacles.find(hitObstacle);
+          if (pumpActive) {
+            player.y = Math.max(42, Math.min(H - 42, player.y));
+          } else if (player.y < 32 || player.y > H - 32) {
             if (effects.shield > 0) breakShield();
             else crash();
           } else if (hit) {
@@ -861,6 +896,17 @@
             collectVtc(p.x, p.y, 35);
             return;
           }
+          if (p.type === "pump") {
+            effects.pump = Math.max(effects.pump || 0, 4.2);
+            obstacles = [];
+            spawnTimer = 260;
+            player.vy = -240;
+            beep("buy");
+            for (let i = 0; i < 34; i += 1) {
+              particles.push({ x: p.x, y: p.y, vx: -240 + Math.random() * 420, vy: -190 + Math.random() * 380, life: 0.42, c: Math.random() > 0.45 ? "#ff7a30" : "#ffd75e", r: 4 + Math.random() * 8 });
+            }
+            return;
+          }
           const durations = { magnet: 7.5, shield: 6, slowmo: 5, double: 8 };
           effects[p.type] = Math.max(effects[p.type] || 0, durations[p.type] || 5);
           beep("buy");
@@ -887,7 +933,8 @@
             magnet: "#2defff",
             shield: "#b9f8ff",
             slowmo: "#8b7dff",
-            double: "#30ff9f"
+            double: "#30ff9f",
+            pump: "#ff7a30"
           }[type] || "#ffd75e";
         }
 
@@ -897,14 +944,16 @@
             magnet: "МАГ",
             shield: "ЩИТ",
             slowmo: "СЛОУ",
-            double: "x2"
+            double: "x2",
+            pump: "ПАМП"
           };
           const en = {
             super: "VTC",
             magnet: "MAG",
             shield: "SHD",
             slowmo: "SLOW",
-            double: "x2"
+            double: "x2",
+            pump: "PUMP"
           };
           return (progress.lang === "ru" ? ru : en)[type] || "VTC";
         }
@@ -1091,6 +1140,13 @@
             ctx.restore();
             return;
           }
+          if (p.type === "pump") {
+            drawPumpCoin(0, 0, 25);
+            ctx.shadowBlur = 18;
+            text(powerupLabel(p.type), 0, 42, 11, "#ffb65e", "950");
+            ctx.restore();
+            return;
+          }
           ctx.fillStyle = "rgba(3, 9, 22, .94)";
           ctx.strokeStyle = color;
           ctx.lineWidth = 3;
@@ -1179,6 +1235,25 @@
             roundRect(player.x + 45, player.y - 54, 45, 25, 8, "rgba(3,20,18,.88)");
             text("x2", player.x + 67, player.y - 41, 15, "#30ff9f", "950");
           }
+          if (effects.pump > 0) {
+            ctx.globalAlpha = 0.32 + Math.sin(t * 12) * 0.06;
+            ctx.strokeStyle = "#ff7a30";
+            ctx.lineWidth = 4;
+            ctx.shadowColor = "#ffd75e";
+            ctx.shadowBlur = 26;
+            ctx.beginPath();
+            ctx.ellipse(player.x + 4, player.y, 82, 44, player.angle, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 0.16;
+            ctx.fillStyle = "#ff7a30";
+            ctx.beginPath();
+            ctx.moveTo(player.x - 50, player.y);
+            ctx.lineTo(player.x - 150, player.y - 32);
+            ctx.lineTo(player.x - 116, player.y);
+            ctx.lineTo(player.x - 150, player.y + 32);
+            ctx.closePath();
+            ctx.fill();
+          }
           ctx.restore();
           ctx.globalAlpha = 1;
         }
@@ -1230,6 +1305,35 @@
           ctx.fillText("VT", x, y + 1);
         }
 
+        function drawPumpCoin(x, y, r = 25) {
+          const grad = ctx.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r);
+          grad.addColorStop(0, "#fff3a6");
+          grad.addColorStop(0.5, "#ffb13d");
+          grad.addColorStop(1, "#b74b15");
+          circle(x, y, r, grad);
+          ctx.strokeStyle = "#fff1a2";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(x, y, r - 4, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = "#ffd35a";
+          ctx.beginPath();
+          ctx.moveTo(x - 12, y - 8);
+          ctx.quadraticCurveTo(x, y - 25, x + 15, y - 8);
+          ctx.quadraticCurveTo(x + 5, y - 13, x - 12, y - 8);
+          ctx.fill();
+          ctx.fillStyle = "#1a1320";
+          ctx.beginPath();
+          ctx.arc(x - 7, y - 1, 2, 0, Math.PI * 2);
+          ctx.arc(x + 7, y - 1, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#1a1320";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x, y + 8, 8, 0.1, Math.PI - 0.1);
+          ctx.stroke();
+        }
+
         function drawFarCoin() {
           if (state === "game") return;
           const t = performance.now() / 1000;
@@ -1274,9 +1378,10 @@
           metric(L("earned"), `+${runCoins}`, 385, "#ffd75e");
           metric("ATH", progress.best, 455, "#7de9ff");
           metric(L("wallet"), progress.coins, 525, "#d9f8ff");
-          btn(270, 682, 342, 72, L("restart"), "#00d9ff");
-          btn(270, 770, 342, 64, L("vault"), "#7d6cff");
-          btn(270, 852, 342, 58, L("shareRun"), "#ffd35a");
+          btn(270, 662, 342, 64, L("restart"), "#00d9ff");
+          btn(270, 738, 342, 58, L("vault"), "#7d6cff");
+          btn(270, 812, 342, 58, L("shareRun"), "#ffd35a");
+          btn(270, 884, 342, 50, L("menu"), "#30ff9f");
         }
 
         function drawShop() {
@@ -1336,8 +1441,7 @@
           btn(370, 452, 150, 52, `${L("language")} ${progress.lang === "ru" ? "RU" : "EN"}`, "#20e8ff");
           btn(270, 552, 342, 58, L("promo"), "#ffd35a");
           if (promoStatus) text(promoStatus, 270, 602, 16, promoStatus === L("promoApplied") ? "#30ff9f" : "#ff7890", "900");
-          btn(270, 724, 342, 58, L("daily"), "#ffd35a");
-          btn(270, 810, 342, 58, L("back"), "#7d6cff");
+          btn(270, 724, 342, 58, L("back"), "#7d6cff");
         }
 
         function drawLeaders() {
@@ -1354,39 +1458,38 @@
             leftText(row.name, 120, y, 15, isYou ? "#effcff" : "#b9d6df", "900");
             text(String(row.score), 432, y, 17, isYou ? "#30ff9f" : "#7de9ff", "950");
           });
-          btn(270, 842, 260, 44, L("settings"), "#2defff");
-          btn(270, 902, 342, 50, L("back"), "#7d6cff");
+          btn(270, 884, 342, 58, L("back"), "#7d6cff");
         }
 
         function drawDaily() {
           drawBg();
           brandHeader(270, 66);
           text(L("dailyTitle"), 270, 128, 42, "#effcff", "950");
-          text(`${L("streak")} ${progress.streak}/7`, 270, 168, 18, "#ffd75e", "900");
-          panel(270, 390, 430, 330, "#ffd35a");
-          for (let i = 1; i <= 7; i += 1) {
+          text(`${L("streak")} ${progress.streak}/${DAILY_MAX}`, 270, 168, 18, "#ffd75e", "900");
+          panel(270, 400, 430, 390, "#ffd35a");
+          for (let i = 1; i <= DAILY_MAX; i += 1) {
             const col = (i - 1) % 4;
             const row = Math.floor((i - 1) / 4);
             const x = 132 + col * 92;
-            const y = 298 + row * 112;
+            const y = 286 + row * 92;
             const active = i <= progress.streak;
-            const todaySlot = canCollectDaily() && i === ((progress.streak % 7) + 1);
+            const todaySlot = canCollectDaily() && i === ((progress.streak % DAILY_MAX) + 1);
             ctx.save();
             ctx.shadowColor = todaySlot ? "#ffd35a" : active ? "#30ff9f" : "#283f5d";
             ctx.shadowBlur = todaySlot ? 22 : 8;
-            roundRect(x - 34, y - 38, 68, 76, 10, active ? "rgba(8,38,28,.9)" : "rgba(7,15,30,.9)");
+            roundRect(x - 34, y - 34, 68, 68, 10, active ? "rgba(8,38,28,.9)" : "rgba(7,15,30,.9)");
             ctx.shadowBlur = 0;
             ctx.strokeStyle = todaySlot ? "#ffd35a" : active ? "#30ff9f" : "#283f5d";
             ctx.lineWidth = 2;
-            roundedPath(x - 34, y - 38, 68, 76, 10);
+            roundedPath(x - 34, y - 34, 68, 68, 10);
             ctx.stroke();
-            drawTinyCoin(x, y - 8, active ? "#ffd75e" : "#647383");
-            text(`${L("day")} ${i}`, x, y + 25, 11, active ? "#30ff9f" : "#7d9eab", "850");
+            drawTinyCoin(x, y - 7, active ? "#ffd75e" : "#647383", 13);
+            text(`${L("day")} ${i}`, x, y + 22, 10, active ? "#30ff9f" : "#7d9eab", "850");
             ctx.restore();
           }
-          text(canCollectDaily() ? "+50" : L("comeBack"), 270, 592, 34, canCollectDaily() ? "#ffd75e" : "#7d9eab", "950");
-          btn(270, 690, 342, 68, canCollectDaily() ? L("collect") : L("received"), canCollectDaily() ? "#ffd35a" : "#30ff9f");
-          btn(270, 782, 342, 58, L("back"), "#7d6cff");
+          text(canCollectDaily() ? "+50 VTC" : L("comeBack"), 270, 622, 30, canCollectDaily() ? "#ffd75e" : "#7d9eab", "950");
+          btn(270, 704, 342, 64, canCollectDaily() ? L("collect") : L("received"), canCollectDaily() ? "#ffd35a" : "#30ff9f");
+          btn(270, 792, 342, 58, L("back"), "#7d6cff");
         }
 
         function drawNickname() {
@@ -1547,12 +1650,13 @@
             else if (inRect(x, y, 360, 834, 166, 52)) state = "settings";
             else if (inRect(x, y, 270, 900, 250, 46)) state = "daily";
           } else if (state === "over") {
-            if (inRect(x, y, 270, 682, 342, 72)) resetRun();
-            else if (inRect(x, y, 270, 770, 342, 64)) {
+            if (inRect(x, y, 270, 662, 342, 64)) resetRun();
+            else if (inRect(x, y, 270, 738, 342, 58)) {
               shopPage = 0;
               state = "shop";
             }
-            else if (inRect(x, y, 270, 852, 342, 58)) share();
+            else if (inRect(x, y, 270, 812, 342, 58)) share();
+            else if (inRect(x, y, 270, 884, 342, 50)) state = "start";
           } else if (state === "shop") {
             if (inRect(x, y, 270, 882, 342, 58)) state = "start";
             if (inRect(x, y, 158, 800, 130, 48)) shopPage = Math.max(0, shopPage - 1);
@@ -1570,11 +1674,10 @@
               chooseMap(map);
             });
           } else if (state === "leaders") {
-            if (inRect(x, y, 270, 842, 260, 44)) state = "settings";
-            if (inRect(x, y, 270, 902, 342, 50)) state = "start";
+            if (inRect(x, y, 270, 884, 342, 58)) state = "start";
           } else if (state === "daily") {
-            if (inRect(x, y, 270, 690, 342, 68)) collectDaily();
-            if (inRect(x, y, 270, 782, 342, 58)) state = "start";
+            if (inRect(x, y, 270, 704, 342, 64)) collectDaily();
+            if (inRect(x, y, 270, 792, 342, 58)) state = "start";
           } else if (state === "nickname") {
             if (inRect(x, y, 270, 560, 342, 64)) askNickname();
             if (inRect(x, y, 270, 642, 342, 58)) {
@@ -1594,8 +1697,7 @@
             if (inRect(x, y, 170, 452, 150, 52)) muted = !muted;
             if (inRect(x, y, 370, 452, 150, 52)) toggleLanguage();
             if (inRect(x, y, 270, 552, 342, 58)) askPromo();
-            if (inRect(x, y, 270, 724, 342, 58)) state = "daily";
-            if (inRect(x, y, 270, 810, 342, 58)) state = "start";
+            if (inRect(x, y, 270, 724, 342, 58)) state = "start";
           }
         }
 

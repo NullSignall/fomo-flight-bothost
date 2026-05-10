@@ -12,7 +12,8 @@ const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.js
 const publicUrl = String(process.env.PUBLIC_URL || "https://bot-1778289451-5878-nullsignal.bothost.tech").replace(/\/+$/, "");
 const miniAppLink = process.env.MINI_APP_LINK || "https://t.me/FomoFlightBot?startapp=share";
 const shareDir = process.env.SHARE_DIR || path.join(__dirname, "data", "share");
-const buildVersion = "2026-05-09-maps-settings-1";
+const buildVersion = "2026-05-10-feedback-1";
+const dailyMax = 12;
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 1150],
@@ -238,7 +239,7 @@ app.post("/api/daily/claim", auth, (req, res) => {
 
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const nextStreak = user.lastDaily === yesterday ? user.dailyStreak + 1 : 1;
-  user.dailyStreak = nextStreak > 7 ? 1 : nextStreak;
+  user.dailyStreak = nextStreak > dailyMax ? 1 : nextStreak;
   user.lastDaily = today;
   user.totalVtc += 50;
   user.updatedAt = new Date().toISOString();
@@ -341,7 +342,7 @@ function normalizeUser(user) {
   if (!user.unlockedMaps.includes("terminal")) user.unlockedMaps.unshift("terminal");
   user.selectedMap = user.unlockedMaps.includes(user.selectedMap) ? user.selectedMap : "terminal";
   user.promoUses = user.promoUses && typeof user.promoUses === "object" ? user.promoUses : {};
-  user.dailyStreak = Math.max(0, Math.min(7, Math.floor(Number(user.dailyStreak) || 0)));
+  user.dailyStreak = Math.max(0, Math.min(dailyMax, Math.floor(Number(user.dailyStreak) || 0)));
   user.lastDaily = typeof user.lastDaily === "string" ? user.lastDaily : "";
   return user;
 }
@@ -350,8 +351,8 @@ function validateRun(run, user, store) {
   if (!run.runId || run.runId.length > 80 || store.runs[run.runId]) return { ok: false, error: "bad_run_id" };
   if (run.score < 0 || run.vtc < 0 || run.durationMs < 1000) return { ok: false, error: "bad_run" };
   const seconds = run.durationMs / 1000;
-  if (run.score / seconds > 45) return { ok: false, error: "score_rate" };
-  if (run.vtc / seconds > 18) return { ok: false, error: "vtc_rate" };
+  if (run.score / seconds > 72) return { ok: false, error: "score_rate" };
+  if (run.vtc / seconds > 30) return { ok: false, error: "vtc_rate" };
   if (!user.unlockedSkins.includes(run.selectedSkin)) return { ok: false, error: "skin_not_unlocked" };
   return { ok: true };
 }
