@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-10-feedback-1";
+        const BUILD = "2026-05-11-maps-share-1";
         const DAILY_MAX = 12;
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
@@ -1031,24 +1031,30 @@
           if (map.id === "bull") {
             cardGlow(ctx, 450, 760, 360, "rgba(48,255,159,.10)");
             drawMarketCandles(350, 132, 0.72);
+            drawBullScene(270, 348, 410, 250, false);
             ctx.strokeStyle = "rgba(48,255,159,.34)";
           } else if (map.id === "bear") {
             cardGlow(ctx, 84, 320, 360, "rgba(255,69,100,.11)");
             drawEdgeCandles("#ff4564", 0.42);
+            drawBearScene(270, 360, 420, 260, false);
             ctx.strokeStyle = "rgba(255,69,100,.32)";
           } else if (map.id === "liquidation") {
             cardGlow(ctx, 420, 260, 420, "rgba(255,69,215,.11)");
             drawCityCandles();
+            drawLiquidationScene(280, 350, 420, 260, false);
             ctx.strokeStyle = "rgba(255,69,215,.27)";
           } else if (map.id === "ethprism") {
             cardGlow(ctx, 430, 310, 420, "rgba(139,125,255,.12)");
             drawPrismNetwork();
+            drawEthPrismScene(160, 260, 310, 220, false);
             ctx.strokeStyle = "rgba(139,125,255,.30)";
           } else if (map.id === "btccitadel") {
             cardGlow(ctx, 270, 770, 460, "rgba(255,211,90,.12)");
             drawCitadel();
+            drawBtcCitadelScene(270, 350, 420, 240, false);
             ctx.strokeStyle = "rgba(255,211,90,.26)";
           } else {
+            drawTerminalCore();
             ctx.strokeStyle = "rgba(48,255,159,.28)";
           }
           ctx.lineWidth = 2.6;
@@ -1417,10 +1423,10 @@
             const owned = progress.unlockedMaps.includes(map.id);
             const selected = progress.selectedMap === map.id;
             panel(270, y, 462, 136, selected ? map.accent : owned ? "#30ff9f" : "#283f5d");
-            drawMapPreview(126, y, 118, 92, map);
-            leftText(map.name, 205, y - 40, 22, "#effcff", "950");
-            leftText(selected ? L("equipped") : owned ? L("unlocked") : `${map.price} ${L("coins")}`, 205, y - 8, 15, selected ? "#30ff9f" : owned ? "#7de9ff" : "#ffd75e", "850");
-            leftText(mapDescription(map), 205, y + 24, 12, "#8eb3c2", "780");
+            drawMapPreview(134, y, 150, 96, map);
+            leftText(map.name, 224, y - 42, 22, "#effcff", "950");
+            leftText(selected ? L("equipped") : owned ? L("unlocked") : `${map.price} ${L("coins")}`, 224, y - 10, 15, selected ? "#30ff9f" : owned ? "#7de9ff" : "#ffd75e", "850");
+            leftText(mapDescription(map), 224, y + 22, 12, "#b8d8e5", "850");
             btn(416, y + 8, 112, 44, selected ? L("equipped") : owned ? L("select") : progress.coins >= map.price ? "BUY" : L("locked"), selected ? "#30ff9f" : owned ? "#00d9ff" : "#ffd35a");
           });
           btn(158, 800, 130, 48, "<", "#7d6cff");
@@ -1742,7 +1748,7 @@
         }
 
         async function uploadShareCard(card) {
-          const image = card.toDataURL("image/png");
+          const image = card.toDataURL("image/jpeg", 0.92);
           return api("/api/share-card", {
             method: "POST",
             body: { image }
@@ -2363,59 +2369,176 @@
         }
 
         function mapDescription(map) {
-          return {
-            terminal: "clean VT grid",
+          const ru = {
+            terminal: "чистый VT терминал",
+            bull: "зелёный импульс",
+            bear: "красная ловушка",
+            ethprism: "фиолетовая сеть",
+            liquidation: "город ликвидаций",
+            btccitadel: "золотая цитадель"
+          };
+          const en = {
+            terminal: "clean VT terminal",
             bull: "green momentum",
-            bear: "red danger tape",
-            ethprism: "violet network",
-            liquidation: "neon city risk",
-            btccitadel: "legendary gold"
-          }[map.id] || "market map";
+            bear: "red market trap",
+            ethprism: "violet prism net",
+            liquidation: "liquidation city",
+            btccitadel: "legendary gold vault"
+          };
+          return (progress.lang === "ru" ? ru : en)[map.id] || "market map";
         }
 
         function drawMapPreview(x, y, w, h, map) {
           ctx.save();
-          roundRect(x - w / 2, y - h / 2, w, h, 10, "#050b17");
+          ctx.shadowColor = map.accent;
+          ctx.shadowBlur = 16;
+          roundRect(x - w / 2, y - h / 2, w, h, 12, "#050b17");
           ctx.save();
           ctx.beginPath();
-          roundedPath(x - w / 2, y - h / 2, w, h, 10);
+          roundedPath(x - w / 2, y - h / 2, w, h, 12);
           ctx.clip();
-          const g = ctx.createLinearGradient(x - w / 2, y - h / 2, x + w / 2, y + h / 2);
+          drawMapScene(x, y, w, h, map, true);
+          ctx.restore();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = map.accent;
+          ctx.lineWidth = 2;
+          roundedPath(x - w / 2, y - h / 2, w, h, 12);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function drawMapScene(x, y, w, h, map, preview = false) {
+          const left = x - w / 2;
+          const top = y - h / 2;
+          const g = ctx.createLinearGradient(left, top, left + w, top + h);
           g.addColorStop(0, "#030712");
-          g.addColorStop(0.6, map.id === "bull" ? "#05291b" : map.id === "bear" ? "#260716" : map.id === "btccitadel" ? "#241906" : "#071329");
+          g.addColorStop(0.56, map.id === "bull" ? "#05291b" : map.id === "bear" ? "#260716" : map.id === "btccitadel" ? "#2a1b05" : map.id === "liquidation" ? "#190722" : "#071329");
           g.addColorStop(1, "#030711");
           ctx.fillStyle = g;
-          ctx.fillRect(x - w / 2, y - h / 2, w, h);
-          ctx.strokeStyle = "rgba(74,144,190,.25)";
+          ctx.fillRect(left, top, w, h);
+          ctx.globalAlpha = preview ? 0.28 : 0.18;
+          ctx.strokeStyle = "rgba(84,154,210,.48)";
           ctx.lineWidth = 1;
-          for (let gx = x - w / 2; gx <= x + w / 2; gx += 18) line(gx, y - h / 2, gx, y + h / 2);
-          for (let gy = y - h / 2; gy <= y + h / 2; gy += 18) line(x - w / 2, gy, x + w / 2, gy);
-          ctx.strokeStyle = map.accent;
-          ctx.lineWidth = 2;
-          ctx.globalAlpha = 0.72;
-          if (map.id === "ethprism") {
-            line(x - 40, y + 18, x - 8, y - 26);
-            line(x - 8, y - 26, x + 42, y + 8);
-            circle(x - 8, y - 26, 3, map.accent);
-            circle(x + 42, y + 8, 3, "#2defff");
-          } else if (map.id === "liquidation") {
-            for (let i = 0; i < 5; i += 1) roundRect(x - 48 + i * 23, y + 30 - i * 10, 14, 46 + i * 9, 3, i % 2 ? "#ff45d7" : "#ff4564");
-          } else if (map.id === "btccitadel") {
-            for (let i = 0; i < 4; i += 1) roundRect(x - 39 + i * 26, y - 18, 16, 54, 3, "#ffd35a");
-          } else {
+          for (let gx = left; gx <= left + w; gx += preview ? 20 : 36) line(gx, top, gx, top + h);
+          for (let gy = top; gy <= top + h; gy += preview ? 20 : 36) line(left, gy, left + w, gy);
+          ctx.globalAlpha = 1;
+          if (map.id === "bull") drawBullScene(x, y, w, h, preview);
+          else if (map.id === "bear") drawBearScene(x, y, w, h, preview);
+          else if (map.id === "ethprism") drawEthPrismScene(x, y, w, h, preview);
+          else if (map.id === "liquidation") drawLiquidationScene(x, y, w, h, preview);
+          else if (map.id === "btccitadel") drawBtcCitadelScene(x, y, w, h, preview);
+          else drawTerminalScene(x, y, w, h, preview);
+        }
+
+        function drawTerminalScene(x, y, w, h, preview) {
+          ctx.save();
+          ctx.strokeStyle = "#2defff";
+          ctx.lineWidth = preview ? 2 : 3;
+          ctx.globalAlpha = 0.82;
+          roundRect(x - w * 0.38, y - h * 0.24, w * 0.76, h * 0.48, 8, "rgba(2,12,22,.64)");
+          ctx.strokeStyle = "rgba(45,239,255,.72)";
+          roundedPath(x - w * 0.38, y - h * 0.24, w * 0.76, h * 0.48, 8);
+          ctx.stroke();
+          ctx.beginPath();
+          for (let i = 0; i < 8; i += 1) {
+            const px = x - w * 0.31 + i * w * 0.088;
+            const py = y + h * 0.13 - Math.sin(i * 0.9) * h * 0.16;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+          drawVTLogo(x + w * 0.24, y - h * 0.02, preview ? 13 : 28);
+          ctx.restore();
+        }
+
+        function drawBullScene(x, y, w, h, preview) {
+          ctx.save();
+          ctx.globalAlpha = 0.9;
+          ctx.strokeStyle = "#30ff9f";
+          ctx.lineWidth = preview ? 3 : 5;
+          ctx.beginPath();
+          ctx.moveTo(x - w * 0.38, y + h * 0.22);
+          ctx.lineTo(x - w * 0.12, y + h * 0.02);
+          ctx.lineTo(x + w * 0.08, y - h * 0.08);
+          ctx.lineTo(x + w * 0.34, y - h * 0.30);
+          ctx.stroke();
+          line(x + w * 0.2, y - h * 0.30, x + w * 0.34, y - h * 0.30);
+          line(x + w * 0.34, y - h * 0.30, x + w * 0.34, y - h * 0.15);
+          ctx.globalAlpha = 0.45;
+          for (let i = 0; i < 6; i += 1) roundRect(x - w * 0.36 + i * w * 0.13, y + h * 0.30 - i * h * 0.07, w * 0.055, h * (0.18 + i * 0.028), 3, "#30ff9f");
+          ctx.restore();
+        }
+
+        function drawBearScene(x, y, w, h, preview) {
+          ctx.save();
+          ctx.globalAlpha = 0.92;
+          ctx.strokeStyle = "#ff4564";
+          ctx.lineWidth = preview ? 3 : 5;
+          ctx.beginPath();
+          ctx.moveTo(x - w * 0.38, y - h * 0.24);
+          ctx.lineTo(x - w * 0.12, y - h * 0.03);
+          ctx.lineTo(x + w * 0.02, y + h * 0.18);
+          ctx.lineTo(x + w * 0.34, y + h * 0.02);
+          ctx.stroke();
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = "#ff4564";
+          for (let i = 0; i < 5; i += 1) {
             ctx.beginPath();
-            for (let i = 0; i < 7; i += 1) {
-              const px = x - 48 + i * 16;
-              const py = y + 22 - Math.sin(i * 0.8 + (map.id === "bear" ? 2 : 0)) * 18 - (map.id === "bull" ? i * 4 : 0);
-              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.stroke();
+            ctx.moveTo(x - w * 0.42 + i * w * 0.2, y - h * 0.38);
+            ctx.lineTo(x - w * 0.35 + i * w * 0.2, y - h * 0.38);
+            ctx.lineTo(x - w * 0.40 + i * w * 0.2, y + h * 0.38);
+            ctx.closePath();
+            ctx.fill();
           }
           ctx.restore();
-          ctx.strokeStyle = map.accent;
-          ctx.lineWidth = 2;
-          roundedPath(x - w / 2, y - h / 2, w, h, 10);
+        }
+
+        function drawEthPrismScene(x, y, w, h, preview) {
+          ctx.save();
+          ctx.globalAlpha = 0.92;
+          ctx.strokeStyle = "#8b7dff";
+          ctx.lineWidth = preview ? 2 : 4;
+          const pts = [[x, y - h * 0.34], [x + w * 0.24, y], [x, y + h * 0.34], [x - w * 0.24, y]];
+          ctx.beginPath();
+          pts.forEach((p, i) => { if (!i) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]); });
+          ctx.closePath();
           ctx.stroke();
+          line(x, y - h * 0.34, x, y + h * 0.34);
+          line(x - w * 0.24, y, x + w * 0.24, y);
+          ctx.strokeStyle = "#2defff";
+          [[-0.36, 0.28], [-0.18, -0.20], [0.32, -0.28], [0.38, 0.22]].forEach(([px, py], i) => {
+            circle(x + px * w, y + py * h, preview ? 3 : 5, i % 2 ? "#2defff" : "#8b7dff");
+          });
+          ctx.restore();
+        }
+
+        function drawLiquidationScene(x, y, w, h, preview) {
+          ctx.save();
+          ctx.globalAlpha = 0.86;
+          const colors = ["#00e5ff", "#ff45d7", "#7d5cff", "#ff4564"];
+          for (let i = 0; i < 7; i += 1) {
+            const bx = x - w * 0.40 + i * w * 0.13;
+            const bh = h * (0.25 + (i % 4) * 0.12);
+            roundRect(bx, y + h * 0.36 - bh, w * 0.065, bh, 3, colors[i % colors.length]);
+          }
+          ctx.strokeStyle = "#ff45d7";
+          ctx.lineWidth = preview ? 2 : 4;
+          line(x - w * 0.44, y - h * 0.34, x + w * 0.44, y + h * 0.34);
+          line(x + w * 0.44, y - h * 0.34, x - w * 0.44, y + h * 0.34);
+          ctx.restore();
+        }
+
+        function drawBtcCitadelScene(x, y, w, h, preview) {
+          ctx.save();
+          ctx.globalAlpha = 0.9;
+          for (let i = 0; i < 5; i += 1) {
+            const bx = x - w * 0.34 + i * w * 0.17;
+            const bh = h * (0.42 + (i === 2 ? 0.18 : 0));
+            roundRect(bx, y + h * 0.32 - bh, w * 0.09, bh, 4, "#ffd35a");
+            ctx.strokeStyle = "#fff08a";
+            line(bx + w * 0.045, y + h * 0.18 - bh, bx + w * 0.045, y + h * 0.36);
+          }
+          circle(x + w * 0.28, y - h * 0.20, preview ? 13 : 32, "rgba(255,211,90,.32)");
+          text("BTC", x + w * 0.28, y - h * 0.20, preview ? 9 : 20, "#ffd35a", "950");
           ctx.restore();
         }
 
@@ -2657,6 +2780,25 @@
           ctx.restore();
         }
 
+        function drawTerminalCore() {
+          ctx.save();
+          ctx.globalAlpha = 0.22;
+          ctx.strokeStyle = "#2defff";
+          ctx.lineWidth = 2;
+          roundedPath(334, 208, 142, 92, 18);
+          ctx.stroke();
+          ctx.beginPath();
+          for (let i = 0; i < 7; i += 1) {
+            const x = 352 + i * 18;
+            const y = 264 - Math.sin(i * 0.85) * 22;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          ctx.globalAlpha = 0.16;
+          drawVTLogo(450, 250, 28);
+          ctx.restore();
+        }
+
         function drawEdgeCandles(color, alpha) {
           ctx.save();
           ctx.globalAlpha = alpha;
@@ -2668,40 +2810,63 @@
             ctx.lineWidth = 2;
             line(x, 104 + i * 42, x, 236 + h * 0.35 + i * 42);
           });
+          ctx.globalAlpha = 0.16;
+          ctx.fillStyle = color;
+          for (let i = 0; i < 7; i += 1) {
+            ctx.beginPath();
+            ctx.moveTo(18 + i * 86, 0);
+            ctx.lineTo(72 + i * 86, 0);
+            ctx.lineTo(18 + i * 86, H);
+            ctx.closePath();
+            ctx.fill();
+          }
           ctx.restore();
         }
 
         function drawCityCandles() {
           ctx.save();
-          ctx.globalAlpha = 0.28;
+          ctx.globalAlpha = 0.36;
           const colors = ["#00e5ff", "#ff45d7", "#7d5cff", "#ff4564"];
-          for (let i = 0; i < 10; i += 1) {
-            const x = 36 + i * 54;
-            const h = 58 + (i % 4) * 38;
-            roundRect(x - 13, 760 - h, 26, h, 4, colors[i % colors.length]);
+          for (let i = 0; i < 12; i += 1) {
+            const x = 24 + i * 48;
+            const h = 74 + (i % 5) * 42;
+            roundRect(x - 14, 770 - h, 28, h, 4, colors[i % colors.length]);
             ctx.strokeStyle = colors[i % colors.length];
             ctx.lineWidth = 2;
-            line(x, 742 - h, x, 792);
+            line(x, 732 - h, x, 800);
           }
+          ctx.globalAlpha = 0.16;
+          ctx.strokeStyle = "#ff45d7";
+          ctx.lineWidth = 4;
+          for (let i = 0; i < 4; i += 1) line(20 + i * 150, 300, 128 + i * 150, 650);
           ctx.restore();
         }
 
         function drawPrismNetwork() {
           ctx.save();
-          ctx.globalAlpha = 0.34;
+          ctx.globalAlpha = 0.42;
           ctx.strokeStyle = "#8b7dff";
           ctx.lineWidth = 1.5;
-          const pts = [[410, 165], [482, 252], [430, 360], [500, 475], [385, 600], [462, 730]];
+          const pts = [[392, 145], [492, 228], [414, 342], [508, 470], [360, 596], [474, 744], [318, 820]];
           pts.forEach((p, i) => {
-            circle(p[0], p[1], 3.2, i % 2 ? "#2defff" : "#8b7dff");
+            circle(p[0], p[1], 4.2, i % 2 ? "#2defff" : "#8b7dff");
             if (i) line(pts[i - 1][0], pts[i - 1][1], p[0], p[1]);
           });
+          ctx.globalAlpha = 0.14;
+          ctx.fillStyle = "#8b7dff";
+          ctx.beginPath();
+          ctx.moveTo(76, 245);
+          ctx.lineTo(166, 112);
+          ctx.lineTo(254, 245);
+          ctx.lineTo(164, 370);
+          ctx.closePath();
+          ctx.fill();
           ctx.restore();
         }
 
         function drawCitadel() {
           ctx.save();
-          ctx.globalAlpha = 0.24;
+          ctx.globalAlpha = 0.34;
           ctx.fillStyle = "#ffd35a";
           for (let i = 0; i < 7; i += 1) {
             const x = 42 + i * 76;
@@ -2710,6 +2875,9 @@
             ctx.strokeStyle = "#fff08a";
             line(x, 118 - h * 0.4, x, 190);
           }
+          ctx.globalAlpha = 0.18;
+          circle(444, 248, 62, "#ffd35a");
+          text("BTC", 444, 250, 24, "#ffd35a", "950");
           ctx.restore();
         }
 
