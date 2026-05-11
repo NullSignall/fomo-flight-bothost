@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-11-map-art-story-2";
+        const BUILD = "2026-05-11-map-art-story-3";
         const DAILY_MAX = 12;
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
@@ -311,6 +311,7 @@
         let muted = false;
         let leaderboardCache = [];
         let cloudReady = false;
+        let bootLoading = hasTelegramAuth();
         let syncBusy = false;
         let lastRun = { score: 0, vtc: 0, ath: progress.best, newBest: false, line: "" };
         let miniAppLink = "https://t.me/FomoFlightBot?startapp=share";
@@ -524,13 +525,18 @@
         }
 
         async function loadCloudProfile() {
-          if (!hasTelegramAuth()) return;
+          if (!hasTelegramAuth()) {
+            bootLoading = false;
+            return;
+          }
           try {
             const data = await api("/api/profile");
             applyServerProfile(data.profile);
             await loadLeaderboard();
           } catch (error) {
             cloudReady = false;
+          } finally {
+            bootLoading = false;
           }
         }
 
@@ -745,7 +751,7 @@
 
         function flap() {
           if (state === "game") {
-            player.vy = -430;
+            player.vy = effects.pump > 0 ? -230 : -430;
             beep("flap");
           }
         }
@@ -770,7 +776,7 @@
         }
 
         function spawnPumpCoins() {
-          const baseY = H * 0.44 + (Math.random() - 0.5) * 120;
+          const baseY = Math.max(150, Math.min(H - 170, player.y + (Math.random() - 0.5) * 92));
           const count = 7 + Math.floor(Math.random() * 3);
           for (let i = 0; i < count; i += 1) {
             const t = count === 1 ? 0.5 : i / (count - 1);
@@ -825,10 +831,10 @@
               spawnTimer = difficulty.spawn;
             }
           }
-          player.vy += (pumpActive ? 520 : 1130) * dt;
+          player.vy += (pumpActive ? 760 : 1130) * dt;
           if (pumpActive) {
-            player.vy += (-125 - player.vy) * Math.min(1, dt * 4);
-            player.y += (H * 0.43 - player.y) * Math.min(1, dt * 1.2);
+            const targetY = H * 0.48;
+            player.vy += ((targetY - player.y) * 1.05 - player.vy) * Math.min(1, dt * 1.25);
           }
           player.y += player.vy * dt;
           player.angle = Math.max(-0.42, Math.min(0.58, player.vy / 980));
@@ -1423,6 +1429,19 @@
           btn(270, 900, 250, 46, L("daily"), "#ffd35a");
         }
 
+        function drawBootLoading() {
+          drawBg();
+          brandHeader(270, 132);
+          text("FOMO FLIGHT", 270, 236, 42, "#effcff", "950");
+          panel(270, 420, 360, 124, "#2defff");
+          text(progress.lang === "ru" ? "ЗАГРУЖАЕМ ПРОГРЕСС" : "LOADING PROFILE", 270, 395, 20, "#7de9ff", "950");
+          const t = performance.now() / 1000;
+          for (let i = 0; i < 5; i += 1) {
+            const a = t * 3 + i * 1.25;
+            circle(270 + Math.cos(a) * 58, 446 + Math.sin(a) * 14, 4 + i * 0.4, i % 2 ? "#7d6cff" : "#2defff");
+          }
+        }
+
         function drawOver() {
           drawBg();
           brandHeader(270, 72);
@@ -1769,7 +1788,10 @@
             const blob = await new Promise((resolve) => card.toBlob(resolve, "image/jpeg", 0.9));
             if (tg && tg.shareToStory && hasTelegramAuth()) {
               const media = await uploadShareCard(card);
-              const storyMediaUrl = `${media.mediaUrl}${media.mediaUrl.includes("?") ? "&" : "?"}v=${Date.now()}`;
+              const storyMediaUrl = media.mediaUrl;
+              try {
+                await fetch(storyMediaUrl, { method: "GET", cache: "no-store" });
+              } catch {}
               tg.shareToStory(storyMediaUrl, {
                 text: storyText
               });
@@ -2983,6 +3005,12 @@
           if (impact > 0) {
             impact -= 1;
             ctx.translate((Math.random() - 0.5) * impact, (Math.random() - 0.5) * impact);
+          }
+          if (bootLoading) {
+            drawBootLoading();
+            ctx.restore();
+            requestAnimationFrame(frame);
+            return;
           }
           if (state === "start") drawStart();
           if (state === "game") drawGame();
