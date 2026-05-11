@@ -4,3 +4,6 @@ node_modules
 npm-debug.log*
 data/store.json
 data/share
+data/backups
+data/suspicious-runs*.log
+data/suspicious-runs*.jsonl

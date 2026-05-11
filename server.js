@@ -12,8 +12,11 @@ const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.js
 const publicUrl = String(process.env.PUBLIC_URL || "https://bot-1778289451-5878-nullsignal.bothost.tech").replace(/\/+$/, "");
 const miniAppLink = process.env.MINI_APP_LINK || "https://t.me/FomoFlightBot?startapp=share";
 const shareDir = process.env.SHARE_DIR || path.join(__dirname, "data", "share");
-const buildVersion = "2026-05-11-endless-balance-2";
+const backupDir = process.env.BACKUP_DIR || path.join(__dirname, "data", "backups");
+const suspiciousLogPath = process.env.SUSPICIOUS_LOG_PATH || path.join(__dirname, "data", "suspicious-runs.jsonl");
+const buildVersion = "2026-05-11-security-1";
 const dailyMax = 12;
+let lastBackupDay = "";
 const skinPrices = new Map([
   ["vt", 0],
   ["ton", 1150],
@@ -40,14 +43,16 @@ const mapPrices = new Map([
   ["btccitadel", 45000]
 ]);
 const promoCodes = new Map([
-  ["valentin", { reward: 100000, maxUses: 10 }]
+  ["tam100", { reward: 10000, maxUses: 1 }]
 ]);
+const rateBuckets = new Map();
 
 app.use(express.json({ limit: "12mb" }));
 app.use((req, res, next) => {
   res.setHeader("x-fomo-flight-build", buildVersion);
   next();
 });
+app.use("/api", rateLimit("api-global", 180, 60_000));
 app.use(express.static(path.join(__dirname, "public"), {
   extensions: ["html"],
   etag: false,
@@ -128,7 +133,7 @@ app.get("/api/profile", auth, (req, res) => {
   res.json({ profile: getUser(req.telegramUser) });
 });
 
-app.post("/api/profile/name", auth, (req, res) => {
+app.post("/api/profile/name", auth, rateLimit("name", 8, 60_000), (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
   const nextName = sanitizeName(req.body.displayName || user.displayName);
@@ -142,7 +147,7 @@ app.post("/api/profile/name", auth, (req, res) => {
   res.json({ profile: user });
 });
 
-app.post("/api/skin/select", auth, (req, res) => {
+app.post("/api/skin/select", auth, rateLimit("skin-select", 60, 60_000), (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
   const skinId = String(req.body.skinId || "");
@@ -155,7 +160,7 @@ app.post("/api/skin/select", auth, (req, res) => {
   res.json({ profile: user });
 });
 
-app.post("/api/skin/buy", auth, (req, res) => {
+app.post("/api/skin/buy", auth, rateLimit("skin-buy", 25, 60_000), (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
   const skinId = String(req.body.skinId || "");
@@ -173,7 +178,7 @@ app.post("/api/skin/buy", auth, (req, res) => {
   res.json({ profile: user });
 });
 
-app.post("/api/map/select", auth, (req, res) => {
+app.post("/api/map/select", auth, rateLimit("map-select", 60, 60_000), (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
   const mapId = String(req.body.mapId || "");
@@ -186,7 +191,7 @@ app.post("/api/map/select", auth, (req, res) => {
   res.json({ profile: user });
 });
 
-app.post("/api/map/buy", auth, (req, res) => {
+app.post("/api/map/buy", auth, rateLimit("map-buy", 25, 60_000), (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
   const mapId = String(req.body.mapId || "");
@@ -204,7 +209,7 @@ app.post("/api/map/buy", auth, (req, res) => {
   res.json({ profile: user });
 });
 
-app.post("/api/promo/redeem", auth, (req, res) => {
+app.post("/api/promo/redeem", auth, rateLimit("promo", 5, 60_000), (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
   const code = normalizePromoCode(req.body.code);
@@ -221,11 +226,31 @@ app.post("/api/promo/redeem", auth, (req, res) => {
   res.json({ accepted: true, reward: promo.reward, usesLeft: promo.maxUses - user.promoUses[code], profile: user });
 });
 
-app.post("/api/run/submit", auth, (req, res) => {
+app.post("/api/run/start", auth, rateLimit("run-start", 25, 60_000), (req, res) => {
+  const store = readStore();
+  const user = getUser(req.telegramUser, store);
+  const selectedSkin = String(req.body.selectedSkin || user.selectedSkin);
+  const selectedMap = String(req.body.selectedMap || user.selectedMap);
+  if (!user.unlockedSkins.includes(selectedSkin)) return res.status(400).json({ error: "skin_not_unlocked" });
+  if (!user.unlockedMaps.includes(selectedMap)) return res.status(400).json({ error: "map_not_unlocked" });
+
+  const runToken = crypto.randomBytes(18).toString("base64url");
+  store.runStarts[runToken] = {
+    telegramId: user.telegramId,
+    selectedSkin,
+    selectedMap,
+    startedAt: new Date().toISOString()
+  };
+  writeStore(store);
+  res.json({ runToken, startedAt: store.runStarts[runToken].startedAt });
+});
+
+app.post("/api/run/submit", auth, rateLimit("run-submit", 20, 60_000), (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
   const run = {
     runId: String(req.body.runId || ""),
+    runToken: String(req.body.runToken || ""),
     score: Math.floor(Number(req.body.score) || 0),
     vtc: Math.floor(Number(req.body.vtc) || 0),
     durationMs: Math.floor(Number(req.body.durationMs) || 0),
@@ -233,7 +258,14 @@ app.post("/api/run/submit", auth, (req, res) => {
   };
 
   const validation = validateRun(run, user, store);
-  if (!validation.ok) return res.status(400).json({ error: validation.error });
+  if (!validation.ok) {
+    logSuspiciousRun(req, user, run, validation.error, validation.details);
+    if (run.runToken && store.runStarts[run.runToken]?.telegramId === user.telegramId) delete store.runStarts[run.runToken];
+    writeStore(store);
+    return res.status(400).json({ error: validation.error });
+  }
+  if (validation.suspicious) logSuspiciousRun(req, user, run, "suspicious_but_accepted", validation.details);
+  delete store.runStarts[run.runToken];
 
   store.runs[run.runId] = {
     telegramId: user.telegramId,
@@ -250,7 +282,7 @@ app.post("/api/run/submit", auth, (req, res) => {
   res.json({ accepted: true, profile: user });
 });
 
-app.post("/api/daily/claim", auth, (req, res) => {
+app.post("/api/daily/claim", auth, rateLimit("daily", 8, 60_000), (req, res) => {
   const store = readStore();
   const user = getUser(req.telegramUser, store);
   const today = new Date().toISOString().slice(0, 10);
@@ -267,7 +299,7 @@ app.post("/api/daily/claim", auth, (req, res) => {
   res.json({ claimed: true, profile: user });
 });
 
-app.post("/api/share-card", auth, (req, res) => {
+app.post("/api/share-card", auth, rateLimit("share-card", 8, 60_000), (req, res) => {
   const image = String(req.body.image || "");
   const match = image.match(/^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=]+)$/);
   if (!match || match[2].length > 10_500_000) return res.status(400).json({ error: "bad_image" });
@@ -301,6 +333,34 @@ function auth(req, res, next) {
   if (!verified.ok) return res.status(401).json({ error: verified.error });
   req.telegramUser = verified.user;
   next();
+}
+
+function rateLimit(scope, limit, windowMs) {
+  return (req, res, next) => {
+    const now = Date.now();
+    const ip = req.headers["x-forwarded-for"] ? String(req.headers["x-forwarded-for"]).split(",")[0].trim() : req.socket.remoteAddress || "unknown";
+    const userKey = req.telegramUser?.id ? `tg:${req.telegramUser.id}` : `ip:${ip}`;
+    const key = `${scope}:${userKey}`;
+    const bucket = rateBuckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+      rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+      cleanupRateBuckets(now);
+      return next();
+    }
+    bucket.count += 1;
+    if (bucket.count > limit) {
+      res.setHeader("retry-after", Math.ceil((bucket.resetAt - now) / 1000));
+      return res.status(429).json({ error: "rate_limited" });
+    }
+    next();
+  };
+}
+
+function cleanupRateBuckets(now) {
+  if (rateBuckets.size < 5000) return;
+  for (const [key, bucket] of rateBuckets) {
+    if (bucket.resetAt <= now) rateBuckets.delete(key);
+  }
 }
 
 function verifyInitData(initData, token) {
@@ -367,13 +427,45 @@ function normalizeUser(user) {
 }
 
 function validateRun(run, user, store) {
-  if (!run.runId || run.runId.length > 80 || store.runs[run.runId]) return { ok: false, error: "bad_run_id" };
-  if (run.score < 0 || run.vtc < 0 || run.durationMs < 1000) return { ok: false, error: "bad_run" };
+  if (!/^[A-Za-z0-9_.:-]{8,96}$/.test(run.runId) || store.runs[run.runId]) return { ok: false, error: "bad_run_id" };
+  if (!run.runToken || !store.runStarts[run.runToken]) return { ok: false, error: "bad_run_token" };
+  const start = store.runStarts[run.runToken];
+  if (start.telegramId !== user.telegramId) return { ok: false, error: "run_token_owner" };
+  if (start.selectedSkin !== run.selectedSkin) return { ok: false, error: "run_skin_mismatch", details: { expected: start.selectedSkin, got: run.selectedSkin } };
+  if (run.score < 0 || run.vtc < 0 || run.durationMs < 1000 || run.durationMs > 3_600_000) return { ok: false, error: "bad_run" };
   const seconds = run.durationMs / 1000;
-  if (run.score / seconds > 72) return { ok: false, error: "score_rate" };
-  if (run.vtc / seconds > 30) return { ok: false, error: "vtc_rate" };
+  const scoreRate = run.score / seconds;
+  const vtcRate = run.vtc / seconds;
+  const serverElapsedMs = Date.now() - Date.parse(start.startedAt);
+  if (!Number.isFinite(serverElapsedMs) || serverElapsedMs < 0) return { ok: false, error: "bad_run_start" };
+  if (run.durationMs > serverElapsedMs + 10_000) return { ok: false, error: "run_time_drift", details: { durationMs: run.durationMs, serverElapsedMs } };
+  const maxScoreRate = seconds < 15 ? 66 : seconds < 45 ? 60 : seconds < 180 ? 56 : 52;
+  const maxVtcRate = seconds < 15 ? 24 : seconds < 45 ? 20 : seconds < 180 ? 17 : 14;
+  if (scoreRate > maxScoreRate) return { ok: false, error: "score_rate", details: { scoreRate, maxScoreRate, seconds } };
+  if (vtcRate > maxVtcRate) return { ok: false, error: "vtc_rate", details: { vtcRate, maxVtcRate, seconds } };
+  if (run.score > 50000) return { ok: false, error: "score_cap", details: { score: run.score } };
+  if (run.vtc > Math.max(80, run.score * 0.18 + 160)) return { ok: false, error: "vtc_score_ratio", details: { score: run.score, vtc: run.vtc } };
   if (!user.unlockedSkins.includes(run.selectedSkin)) return { ok: false, error: "skin_not_unlocked" };
-  return { ok: true };
+  const suspicious = run.score > 12000 || scoreRate > maxScoreRate * 0.82 || vtcRate > maxVtcRate * 0.82 || serverElapsedMs - run.durationMs > 300_000;
+  return { ok: true, suspicious, details: suspicious ? { scoreRate, vtcRate, seconds, serverElapsedMs } : undefined };
+}
+
+function logSuspiciousRun(req, user, run, reason, details = {}) {
+  const entry = {
+    at: new Date().toISOString(),
+    reason,
+    telegramId: user.telegramId,
+    displayName: user.displayName,
+    run,
+    details,
+    ip: req.headers["x-forwarded-for"] ? String(req.headers["x-forwarded-for"]).split(",")[0].trim() : req.socket.remoteAddress || ""
+  };
+  try {
+    fs.mkdirSync(path.dirname(suspiciousLogPath), { recursive: true });
+    fs.appendFileSync(suspiciousLogPath, `${JSON.stringify(entry)}\n`);
+  } catch (error) {
+    console.warn("Failed to write suspicious run log", error);
+  }
 }
 
 function sanitizeName(value) {
@@ -426,17 +518,48 @@ function isNameTaken(name, telegramId, store) {
 }
 
 function readStore() {
-  if (!fs.existsSync(dataPath)) return { users: {}, runs: {} };
+  if (!fs.existsSync(dataPath)) return { users: {}, runs: {}, runStarts: {} };
   const store = JSON.parse(fs.readFileSync(dataPath, "utf8"));
   store.users = store.users || {};
   store.runs = store.runs || {};
+  store.runStarts = store.runStarts || {};
+  pruneRunStarts(store);
   for (const user of Object.values(store.users)) normalizeUser(user);
   return store;
 }
 
 function writeStore(store) {
+  store.users = store.users || {};
+  store.runs = store.runs || {};
+  store.runStarts = store.runStarts || {};
+  pruneRunStarts(store);
   fs.mkdirSync(path.dirname(dataPath), { recursive: true });
   fs.writeFileSync(dataPath, JSON.stringify(store, null, 2));
+  maybeBackupStore();
+}
+
+function pruneRunStarts(store) {
+  const cutoff = Date.now() - 4 * 60 * 60 * 1000;
+  for (const [token, runStart] of Object.entries(store.runStarts || {})) {
+    if (!runStart?.startedAt || Date.parse(runStart.startedAt) < cutoff) delete store.runStarts[token];
+  }
+}
+
+function maybeBackupStore() {
+  const day = new Date().toISOString().slice(0, 10);
+  if (lastBackupDay === day || !fs.existsSync(dataPath)) return;
+  lastBackupDay = day;
+  try {
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.copyFileSync(dataPath, path.join(backupDir, `store-${day}.json`));
+    const backups = fs.readdirSync(backupDir)
+      .filter((file) => /^store-\d{4}-\d{2}-\d{2}\.json$/.test(file))
+      .sort()
+      .reverse();
+    for (const oldBackup of backups.slice(14)) fs.unlinkSync(path.join(backupDir, oldBackup));
+  } catch (error) {
+    console.warn("Failed to write store backup", error);
+  }
 }
 
 app.listen(port, () => {
