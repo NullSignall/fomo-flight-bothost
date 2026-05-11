@@ -1777,11 +1777,12 @@
 
         async function share() {
           const data = lastRun.score ? lastRun : { score: Math.floor(score), vtc: runCoins, ath: progress.best, newBest: false, line: gameOverLine() };
+          const pilot = displayName();
           const message = data.newBest
-            ? `Fomo Flight: NEW ATH ${data.ath} PNL, +${data.vtc} VTC. Can you beat it?\n@FomoFlightBot`
-            : `Fomo Flight: ${data.score} PNL, +${data.vtc} VTC. Can you beat my ATH?\n@FomoFlightBot`;
+            ? `Fomo Flight: ${pilot} hit NEW ATH ${data.ath} PNL and earned +${data.vtc} VTC. Can you beat it?\n@FomoFlightBot`
+            : `Fomo Flight: ${pilot} scored ${data.score} PNL, earned +${data.vtc} VTC. Can you beat my ATH ${data.ath}?\n@FomoFlightBot`;
           const appLink = miniAppLink;
-          const storyText = (data.newBest ? `NEW ATH ${data.ath} PNL, +${data.vtc} VTC\n@FomoFlightBot | t.me/FomoFlightBot` : `${data.score} PNL, +${data.vtc} VTC\n@FomoFlightBot | t.me/FomoFlightBot`).slice(0, 190);
+          const storyText = storyShareText(data, pilot);
           const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appLink)}&text=${encodeURIComponent(message)}`;
           const card = createShareCard(data);
           try {
@@ -1813,6 +1814,13 @@
             else window.open(shareUrl, "_blank");
           }
           beep("buy");
+        }
+
+        function storyShareText(data, pilot) {
+          const line1 = data.newBest ? `NEW ATH: ${data.ath} PNL` : `${pilot}: ${data.score} PNL`;
+          const line2 = data.newBest ? `+${data.vtc} VTC earned` : `+${data.vtc} VTC | ATH ${data.ath}`;
+          const line3 = data.newBest ? "Can you beat this flight?" : "Can you beat my flight?";
+          return `${line1}\n${line2}\n${line3}\n@FomoFlightBot | t.me/FomoFlightBot`.slice(0, 190);
         }
 
         async function uploadShareCard(card) {
