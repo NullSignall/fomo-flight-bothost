@@ -96,20 +96,20 @@ app.use("/share", (req, res, next) => {
   }
 }));
 
-app.get("/debug/share-latest", (_, res) => {
+app.get("/debug/share-latest", debugOnly, (_, res) => {
   const latestPath = path.join(shareDir, "latest.json");
   if (!fs.existsSync(latestPath)) return res.status(404).json({ error: "no_share_card_yet" });
   res.json(JSON.parse(fs.readFileSync(latestPath, "utf8")));
 });
 
-app.get("/debug/share-latest-image", (_, res) => {
+app.get("/debug/share-latest-image", debugOnly, (_, res) => {
   const latestPath = path.join(shareDir, "latest.json");
   if (!fs.existsSync(latestPath)) return res.status(404).send("No share card yet");
   const latest = JSON.parse(fs.readFileSync(latestPath, "utf8"));
   res.redirect(latest.mediaUrl);
 });
 
-app.get("/debug/story-static", (_, res) => {
+app.get("/debug/story-static", debugOnly, (_, res) => {
   res.sendFile(path.join(__dirname, "public", "assets", "story", "fomo-story.jpg"), {
     headers: {
       "content-type": "image/jpeg",
@@ -333,6 +333,11 @@ function auth(req, res, next) {
   if (!verified.ok) return res.status(401).json({ error: verified.error });
   req.telegramUser = verified.user;
   next();
+}
+
+function debugOnly(_, res, next) {
+  if (process.env.DEBUG_ENDPOINTS === "1") return next();
+  res.status(404).send("Not found");
 }
 
 function rateLimit(scope, limit, windowMs) {
