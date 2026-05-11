@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-11-endless-balance-1";
+        const BUILD = "2026-05-11-endless-balance-2";
         const DAILY_MAX = 12;
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
@@ -714,14 +714,15 @@
 
         function difficultyCurve() {
           const early = Math.min(1, score / 350);
-          const mid = Math.min(1, Math.max(0, score - 350) / 1100);
-          const late = Math.min(1, Math.max(0, score - 1450) / 2200);
-          const pressure = early * 0.32 + mid * 0.43 + late * 0.25;
+          const mid = Math.min(1, Math.max(0, score - 350) / 1800);
+          const late = Math.min(1, Math.max(0, score - 2150) / 5200);
+          const elite = Math.min(1, Math.max(0, score - 7350) / 4800);
+          const pressure = early * 0.26 + mid * 0.34 + late * 0.25 + elite * 0.15;
           return {
-            speed: 205 + pressure * 170,
-            gap: 326 - pressure * 90,
-            spawn: 1760 - pressure * 520,
-            margin: 245 - pressure * 22
+            speed: 205 + pressure * 162,
+            gap: 330 - pressure * 84,
+            spawn: 1780 - pressure * 470,
+            margin: 248 - pressure * 20
           };
         }
 
@@ -2364,6 +2365,65 @@
           }
         }
 
+        function drawPremiumSkinSilhouette(skin, spec, mode) {
+          if (mode === "game") ctx.globalAlpha = 0.72;
+          ctx.fillStyle = skin.trim;
+          ctx.strokeStyle = skin.accent;
+          ctx.lineWidth = mode === "game" ? 1.4 : 2;
+          if (["bnb", "btc"].includes(skin.id)) {
+            for (let i = 0; i < 3; i += 1) {
+              path([[5 + i * 14, -31], [12 + i * 14, -43], [19 + i * 14, -31]]);
+            }
+            ctx.strokeStyle = "#fff08a";
+            line(7, -34, 48, -34);
+          } else if (skin.id === "eth") {
+            ctx.fillStyle = "rgba(185,200,255,.42)";
+            path([[18, -42], [38, -21], [24, -5], [4, -24]]);
+            path([[18, 42], [38, 21], [24, 5], [4, 24]]);
+            ctx.strokeStyle = "#effcff";
+            line(18, -42, 24, -5);
+            line(18, 42, 24, 5);
+          } else if (skin.id === "sol") {
+            ctx.strokeStyle = skin.accent;
+            ctx.lineWidth = mode === "game" ? 3 : 4;
+            line(-48, -34, 36, -45);
+            line(-48, 34, 36, 45);
+            ctx.strokeStyle = skin.body;
+            line(-20, -39, 54, -28);
+            line(-20, 39, 54, 28);
+          } else if (skin.id === "link") {
+            ctx.strokeStyle = skin.accent;
+            for (let i = 0; i < 3; i += 1) {
+              const x = 1 + i * 17;
+              ctx.beginPath();
+              ctx.moveTo(x, -34);
+              ctx.lineTo(x + 9, -29);
+              ctx.lineTo(x + 9, -18);
+              ctx.lineTo(x, -13);
+              ctx.lineTo(x - 9, -18);
+              ctx.lineTo(x - 9, -29);
+              ctx.closePath();
+              ctx.stroke();
+            }
+          } else if (skin.id === "pepe") {
+            ctx.fillStyle = "rgba(120,255,74,.44)";
+            circle(30, -31, 8);
+            circle(47, -24, 6);
+            circle(30, 31, 8);
+            circle(47, 24, 6);
+          } else if (skin.id === "doge") {
+            ctx.fillStyle = "rgba(255,224,138,.44)";
+            path([[8, -34], [34, -44], [62, -29], [34, -25]]);
+            path([[8, 34], [34, 44], [62, 29], [34, 25]]);
+          } else if (["trx", "avax"].includes(skin.id)) {
+            ctx.strokeStyle = skin.accent;
+            ctx.lineWidth = mode === "game" ? 2.4 : 3.4;
+            line(18, -35, 68, -26);
+            line(18, 35, 68, 26);
+          }
+          ctx.globalAlpha = 1;
+        }
+
         function drawSkinCoreIcon(skin, x, y, r) {
           if (!["doge", "pepe", "eth", "btc", "sol", "bnb", "link"].includes(skin.id)) return false;
           ctx.save();
@@ -2704,6 +2764,7 @@
             }
           }
 
+          drawPremiumSkinSilhouette(skin, spec, mode);
           drawRocketDetails(skin, spec);
 
           roundRect(28, -19, 34, 38, 15, "rgba(4,10,18,.92)");
