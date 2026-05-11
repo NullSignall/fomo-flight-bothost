@@ -12,7 +12,7 @@ const dataPath = process.env.DATA_PATH || path.join(__dirname, "data", "store.js
 const publicUrl = String(process.env.PUBLIC_URL || "https://bot-1778289451-5878-nullsignal.bothost.tech").replace(/\/+$/, "");
 const miniAppLink = process.env.MINI_APP_LINK || "https://t.me/FomoFlightBot?startapp=share";
 const shareDir = process.env.SHARE_DIR || path.join(__dirname, "data", "share");
-const buildVersion = "2026-05-11-maps-share-1";
+const buildVersion = "2026-05-11-map-art-story-2";
 const dailyMax = 12;
 const skinPrices = new Map([
   ["vt", 0],
@@ -72,14 +72,22 @@ app.get("/api/config", (_, res) => {
 
 app.use("/share", (req, res, next) => {
   res.setHeader("access-control-allow-origin", "*");
+  res.setHeader("access-control-expose-headers", "content-type, content-length");
   res.setHeader("cross-origin-resource-policy", "cross-origin");
   next();
 }, express.static(shareDir, {
   etag: false,
   lastModified: false,
   maxAge: "7d",
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
     res.setHeader("cache-control", "public, max-age=604800, immutable");
+    res.setHeader("x-content-type-options", "nosniff");
+    res.setHeader("content-disposition", "inline");
+    if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) {
+      res.setHeader("content-type", "image/jpeg");
+    } else if (filePath.endsWith(".png")) {
+      res.setHeader("content-type", "image/png");
+    }
   }
 }));
 

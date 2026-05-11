@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-11-maps-share-1";
+        const BUILD = "2026-05-11-map-art-story-2";
         const DAILY_MAX = 12;
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
@@ -156,13 +156,21 @@
           { id: "btc", name: "BTC Crown", market: "BTC", price: 64000, body: "#ffb629", trim: "#7a4c00", cockpit: "#fff3bf", trail: "#ffd35a", accent: "#fff08a", fin: "crown" }
         ];
         const maps = [
-          { id: "terminal", name: "VT Terminal", price: 0, accent: "#2defff", mood: "grid" },
-          { id: "bull", name: "Bull Run", price: 7500, accent: "#30ff9f", mood: "bull" },
-          { id: "bear", name: "Bear Trap", price: 11000, accent: "#ff4564", mood: "bear" },
-          { id: "ethprism", name: "ETH Prism", price: 18000, accent: "#8b7dff", mood: "prism" },
-          { id: "liquidation", name: "Liquidation City", price: 28000, accent: "#ff45d7", mood: "city" },
-          { id: "btccitadel", name: "BTC Citadel", price: 45000, accent: "#ffd35a", mood: "citadel" }
+          { id: "terminal", name: "VT Terminal", price: 0, accent: "#2defff", mood: "grid", art: "assets/maps/terminal.jpg" },
+          { id: "bull", name: "Bull Run", price: 7500, accent: "#30ff9f", mood: "bull", art: "assets/maps/bull.jpg" },
+          { id: "bear", name: "Bear Trap", price: 11000, accent: "#ff4564", mood: "bear", art: "assets/maps/bear.jpg" },
+          { id: "ethprism", name: "ETH Prism", price: 18000, accent: "#8b7dff", mood: "prism", art: "assets/maps/ethprism.jpg" },
+          { id: "liquidation", name: "Liquidation City", price: 28000, accent: "#ff45d7", mood: "city", art: "assets/maps/liquidation.jpg" },
+          { id: "btccitadel", name: "BTC Citadel", price: 45000, accent: "#ffd35a", mood: "citadel", art: "assets/maps/btccitadel.jpg" }
         ];
+        const mapImages = {};
+        maps.forEach((map) => {
+          const img = new Image();
+          img.decoding = "async";
+          img.onload = () => {};
+          img.src = map.art;
+          mapImages[map.id] = img;
+        });
         const copy = {
           en: {
             flight: "crypto arcade flight",
@@ -684,6 +692,20 @@
           return maps.find((map) => map.id === progress.selectedMap) || maps[0];
         }
 
+        function mapImage(map) {
+          const img = mapImages[map.id];
+          return img && img.complete && img.naturalWidth > 0 ? img : null;
+        }
+
+        function drawCoverImage(img, x, y, w, h) {
+          const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+          const sw = w / scale;
+          const sh = h / scale;
+          const sx = (img.naturalWidth - sw) / 2;
+          const sy = (img.naturalHeight - sh) / 2;
+          ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+        }
+
         function difficultyCurve() {
           const early = Math.min(1, score / 350);
           const late = Math.min(1, Math.max(0, score - 350) / 950);
@@ -1001,6 +1023,20 @@
           g.addColorStop(1, "#030711");
           ctx.fillStyle = g;
           ctx.fillRect(0, 0, W, H);
+          const art = mapImage(map);
+          if (art) {
+            ctx.save();
+            ctx.globalAlpha = state === "game" ? 0.48 : 0.62;
+            drawCoverImage(art, 0, 0, W, H);
+            ctx.globalAlpha = 1;
+            const veil = ctx.createLinearGradient(0, 0, 0, H);
+            veil.addColorStop(0, "rgba(3,7,18,.42)");
+            veil.addColorStop(0.45, "rgba(3,7,18,.58)");
+            veil.addColorStop(1, "rgba(3,7,18,.72)");
+            ctx.fillStyle = veil;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+          }
           const scan = ctx.createLinearGradient(0, 0, W, H);
           scan.addColorStop(0, "rgba(0, 229, 255, .10)");
           scan.addColorStop(0.54, "rgba(125, 92, 255, .04)");
@@ -1028,6 +1064,19 @@
         function drawMapAtmosphere(map) {
           ctx.save();
           const t = (Number(score) || performance.now() / 60) * 0.01;
+          if (mapImage(map)) {
+            cardGlow(ctx, 270, 520, 420, `${map.accent}18`);
+            ctx.strokeStyle = `${map.accent}66`;
+            ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            for (let x = 0; x <= W + 60; x += 36) {
+              const y = 765 + Math.sin((x + t * 60) * 0.035) * 28 + Math.sin((x + t * 60) * 0.012) * 42;
+              if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+            return;
+          }
           if (map.id === "bull") {
             cardGlow(ctx, 450, 760, 360, "rgba(48,255,159,.10)");
             drawMarketCandles(350, 132, 0.72);
@@ -1713,19 +1762,16 @@
             ? `Fomo Flight: NEW ATH ${data.ath} PNL, +${data.vtc} VTC. Can you beat it?\n@FomoFlightBot`
             : `Fomo Flight: ${data.score} PNL, +${data.vtc} VTC. Can you beat my ATH?\n@FomoFlightBot`;
           const appLink = miniAppLink;
-          const storyText = (data.newBest ? `NEW ATH ${data.ath} PNL, +${data.vtc} VTC\n@FomoFlightBot` : `${data.score} PNL, +${data.vtc} VTC\n@FomoFlightBot`).slice(0, 190);
+          const storyText = (data.newBest ? `NEW ATH ${data.ath} PNL, +${data.vtc} VTC\n@FomoFlightBot | t.me/FomoFlightBot` : `${data.score} PNL, +${data.vtc} VTC\n@FomoFlightBot | t.me/FomoFlightBot`).slice(0, 190);
           const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appLink)}&text=${encodeURIComponent(message)}`;
           const card = createShareCard(data);
           try {
             const blob = await new Promise((resolve) => card.toBlob(resolve, "image/jpeg", 0.9));
             if (tg && tg.shareToStory && hasTelegramAuth()) {
               const media = await uploadShareCard(card);
-              tg.shareToStory(media.mediaUrl, {
-                text: storyText,
-                widget_link: {
-                  url: media.miniAppLink || appLink,
-                  name: "Play Fomo Flight"
-                }
+              const storyMediaUrl = `${media.mediaUrl}${media.mediaUrl.includes("?") ? "&" : "?"}v=${Date.now()}`;
+              tg.shareToStory(storyMediaUrl, {
+                text: storyText
               });
               beep("buy");
               return;
@@ -1757,9 +1803,11 @@
 
         function createShareCard(run) {
           const card = document.createElement("canvas");
-          card.width = 1080;
-          card.height = 1920;
+          const storyScale = 2 / 3;
+          card.width = 720;
+          card.height = 1280;
           const c = card.getContext("2d");
+          c.scale(storyScale, storyScale);
           const victory = run.newBest;
           const skin = selectedSkin();
           const bg = c.createLinearGradient(0, 0, 0, 1920);
@@ -2397,7 +2445,18 @@
           ctx.beginPath();
           roundedPath(x - w / 2, y - h / 2, w, h, 12);
           ctx.clip();
-          drawMapScene(x, y, w, h, map, true);
+          const art = mapImage(map);
+          if (art) {
+            drawCoverImage(art, x - w / 2, y - h / 2, w, h);
+            const shade = ctx.createLinearGradient(x - w / 2, y - h / 2, x + w / 2, y + h / 2);
+            shade.addColorStop(0, "rgba(3,7,18,.10)");
+            shade.addColorStop(0.72, "rgba(3,7,18,.22)");
+            shade.addColorStop(1, "rgba(3,7,18,.58)");
+            ctx.fillStyle = shade;
+            ctx.fillRect(x - w / 2, y - h / 2, w, h);
+          } else {
+            drawMapScene(x, y, w, h, map, true);
+          }
           ctx.restore();
           ctx.shadowBlur = 0;
           ctx.strokeStyle = map.accent;
