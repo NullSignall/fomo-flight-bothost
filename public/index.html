@@ -122,7 +122,7 @@
       (() => {
         const W = 540;
         const H = 960;
-        const BUILD = "2026-05-11-map-art-story-3";
+        const BUILD = "2026-05-11-endless-balance-1";
         const DAILY_MAX = 12;
         const canvas = document.getElementById("game");
         const nickModal = document.getElementById("nickModal");
@@ -714,13 +714,14 @@
 
         function difficultyCurve() {
           const early = Math.min(1, score / 350);
-          const late = Math.min(1, Math.max(0, score - 350) / 950);
-          const pressure = early * 0.45 + late * 0.55;
+          const mid = Math.min(1, Math.max(0, score - 350) / 1100);
+          const late = Math.min(1, Math.max(0, score - 1450) / 2200);
+          const pressure = early * 0.32 + mid * 0.43 + late * 0.25;
           return {
-            speed: 205 + pressure * 185,
-            gap: 326 - pressure * 104,
-            spawn: 1760 - pressure * 600,
-            margin: 245 - pressure * 28
+            speed: 205 + pressure * 170,
+            gap: 326 - pressure * 90,
+            spawn: 1760 - pressure * 520,
+            margin: 245 - pressure * 22
           };
         }
 
@@ -925,7 +926,7 @@
             return;
           }
           if (p.type === "pump") {
-            effects.pump = Math.max(effects.pump || 0, 4.2);
+            effects.pump = Math.max(effects.pump || 0, 4.8);
             obstacles = [];
             spawnTimer = 260;
             player.vy = -240;
