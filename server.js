@@ -104,6 +104,17 @@ app.get("/debug/share-latest-image", (_, res) => {
   res.redirect(latest.mediaUrl);
 });
 
+app.get("/debug/story-static", (_, res) => {
+  res.sendFile(path.join(__dirname, "public", "assets", "story", "fomo-story.jpg"), {
+    headers: {
+      "content-type": "image/jpeg",
+      "content-disposition": "inline",
+      "cache-control": "public, max-age=604800, immutable",
+      "x-content-type-options": "nosniff"
+    }
+  });
+});
+
 app.get("/api/leaderboard", (_, res) => {
   const store = readStore();
   const rows = Object.values(store.users)

@@ -1787,8 +1787,8 @@
           try {
             const blob = await new Promise((resolve) => card.toBlob(resolve, "image/jpeg", 0.9));
             if (tg && tg.shareToStory && hasTelegramAuth()) {
-              const media = await uploadShareCard(card);
-              const storyMediaUrl = media.mediaUrl;
+              await uploadShareCard(card);
+              const storyMediaUrl = new URL("assets/story/fomo-story.jpg", location.href).href;
               try {
                 await fetch(storyMediaUrl, { method: "GET", cache: "no-store" });
               } catch {}
